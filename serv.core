@@ -1,0 +1,70 @@
+module 'serv' ['code_change'/3,
+	       'handle_call'/3,
+	       'handle_cast'/2,
+	       'handle_info'/2,
+	       'init'/1,
+	       'module_info'/0,
+	       'module_info'/1,
+	       'start_link'/0,
+	       'terminate'/2]
+    attributes [%% Line 3
+		'behaviour' =
+		    %% Line 3
+		    ['gen_server'],
+		%% Line 16
+		'record' =
+		    %% Line 16
+		    [{'state',[]}]]
+'start_link'/0 =
+    %% Line 29
+    fun () ->
+	%% Line 30
+	call 'gen_server':'start_link'
+	    ({'local','serv'}, 'serv', [], [])
+'init'/1 =
+    %% Line 47
+    fun (_cor0) ->
+	case _cor0 of
+	  <[]> when 'true' ->
+	      %% Line 48
+	      {'ok',{'state'}}
+	  ( <_cor1> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor1})
+		  -| [{'function_name',{'init',1}}] )
+	    -| ['compiler_generated'] )
+	end
+'handle_call'/3 =
+    %% Line 64
+    fun (_cor2,_cor1,_cor0) ->
+	%% Line 66
+	{'reply','ok',_cor0}
+'handle_cast'/2 =
+    %% Line 78
+    fun (_cor1,_cor0) ->
+	%% Line 79
+	{'noreply',_cor0}
+'handle_info'/2 =
+    %% Line 91
+    fun (_cor1,_cor0) ->
+	%% Line 92
+	{'noreply',_cor0}
+'terminate'/2 =
+    %% Line 105
+    fun (_cor1,_cor0) ->
+	%% Line 106
+	'ok'
+'code_change'/3 =
+    %% Line 116
+    fun (_cor2,_cor1,_cor0) ->
+	%% Line 117
+	{'ok',_cor1}
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('serv')
+'module_info'/1 =
+    fun (_cor0) ->
+	call 'erlang':'get_module_info'
+	    ('serv', _cor0)
+end
