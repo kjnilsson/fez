@@ -1,0 +1,30 @@
+﻿<Project Sdk="FSharp.NET.Sdk;Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="cerl.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Compiler.Service" Version="12.0.2" />
+    <PackageReference Include="FSharp.Core" Version="4.1.*" />
+    <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
+  </ItemGroup>
+  <Target Name="_Inspect_FscArgs"
+          DependsOnTargets="ResolveReferences;CoreCompile">
+    <Message Text="%(FscCommandLineArgs.Identity)" Importance="High" />
+    <WriteLinesToFile
+            Condition=" '$(_Inspect_FscArgs_OutFile)' != '' "
+            File="$(_Inspect_FscArgs_OutFile)"
+            Lines="@(FscCommandLineArgs -> '%(Identity)')"
+            Overwrite="true" 
+            Encoding="UTF-8"/>
+    <!-- WriteLinesToFile doesnt create the file if @(FscCommandLineArgs) is empty -->
+    <Touch
+        Condition=" '$(_Inspect_FscArgs_OutFile)' != '' "
+        Files="$(_Inspect_FscArgs_OutFile)"
+        AlwaysCreate="True" />
+  </Target>
+</Project>

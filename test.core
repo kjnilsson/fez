@@ -1,56 +1,7 @@
-module 'test' ['module_info'/0,
-	       'module_info'/1,
-	       'name'/1,
-	       'num'/1,
-	       'square'/1]
-    attributes [%% Line 2
-		'record' =
-		    %% Line 2
-		    [{'shrd_rec',[{'typed_record_field',{'record_field',[2],{'atom',[2],'name'}},{'type',[2],'string',[]}}]}],
-		%% Line 6
-		'record' =
-		    %% Line 6
-		    [{'a_rec',[{'typed_record_field',{'record_field',[6],{'atom',[6],'num'}},{'type',[6],'integer',[]}}]}],
-		%% Line 8
-		'spec' =
-		    %% Line 8
-		    [{{'square',1},[{'type',[8],'fun',[{'type',[8],'product',[{'type',[8],'integer',[]}]}|[{'type',[8],'integer',[]}]]}]}]]
+module 'Test' ['square'/1]
+    attributes []
 'square'/1 =
-    %% Line 9
     fun (_cor0) ->
-	call 'erlang':'*'
+    call 'erlang':'*'
 	    (_cor0, _cor0)
-'num'/1 =
-    %% Line 11
-    fun (_cor0) ->
-	case _cor0 of
-	  <{'a_rec',Num}> when 'true' ->
-	      %% Line 12
-	      Num
-	  ( <_cor1> when 'true' ->
-		( primop 'match_fail'
-		      ({'function_clause',_cor1})
-		  -| [{'function_name',{'num',1}}] )
-	    -| ['compiler_generated'] )
-	end
-'name'/1 =
-    %% Line 14
-    fun (_cor0) ->
-	case _cor0 of
-	  <{'shrd_rec',Name}> when 'true' ->
-	      Name
-	  ( <_cor1> when 'true' ->
-		( primop 'match_fail'
-		      ({'function_clause',_cor1})
-		  -| [{'function_name',{'name',1}}] )
-	    -| ['compiler_generated'] )
-	end
-'module_info'/0 =
-    fun () ->
-	call 'erlang':'get_module_info'
-	    ('test')
-'module_info'/1 =
-    fun (_cor0) ->
-	call 'erlang':'get_module_info'
-	    ('test', _cor0)
-end
+        end
