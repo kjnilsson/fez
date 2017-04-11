@@ -8,6 +8,31 @@ module Util =
 
     let prtNl() = printf "\r\n"
 
+type Prt =
+    | Prt of (string * Prt) list
+    | Term
+    | Closing of string
+
+let t : Prt =
+    Prt ["module 'test' ['square'/1,", Prt ["'module_info'/0", Term
+                                            "'module_info'/1", Term]
+         "'square'/1", Prt ["fun (_core0) ->",
+                             Prt ["call 'erlang':'*'",
+                                   Prt ["(_core0, core0)", Term]]]
+         "end", Term]
+
+let rec printItem ((Indent ind) as i) (l, p) =
+    printf "%s%s" ind l
+    rend (i+4) p
+and rend i (prt : Prt) =
+    match prt with
+    | Prt items ->
+        for itm in items do
+            printf "%s" System.Environment.NewLine
+            printItem i itm
+    | Closing s -> printf "%s" s
+    | Term -> ()
+
 
 type Var = string
 
@@ -25,7 +50,7 @@ type Literal =
     | LAtom of Atom      // ^ atom literal
     | LNil              // ^ empty list
     with
-        static member prt indent lit =
+        static member prt (Indent indent) lit =
             match lit with
             | LChar c ->
                 sprintf "%s$%c'" indent c
@@ -55,22 +80,49 @@ and Pat =
     | PList of ExprList<Pat>         // ^ list pattern
     | PBinary of List<BitString<Pat>>  // ^ list of bitstring patterns
     | PAlias of Alias             // ^ alias pattern
+with
+    static member prt pat =
+        match pat with
+        | PVar v -> v
+        | PLit l -> Literal.prt 0 l
+        | PTuple tup ->
+            let pats = List.map Pat.prt tup
+            sprintf "{%s}" (String.concat "," pats)
+        | x -> failwithf "Pat.prt not impl %A" x
 
 and Alias = Alias of Var * Pat
+
+and Guard = Guard of Exps
 
 and Pats =
     | Pat of Pat    // ^ single pattern
     | Pats of List<Pat> // ^ list of patterns
+with
+    static member prt pats =
+        match pats with
+        | Pat p -> sprintf "<%s>" (Pat.prt p)
+        | pl -> failwithf "not impl %A" pl
 
-and Alt = Alt of  Pats * Guard * Exps
-
-and Guard = Guard of Exps
+and Alt = Alt of Pats * Guard * Exps
+with
+    static member prt ((Indent indent) as i) (Alt (pats, Guard guardExps, exps)) =
+        let pat = Pats.prt pats
+        let guard = Exps.prt 0 guardExps
+        let body = Exps.prt (i+4) exps
+        sprintf "%s%s when %s ->\r\n%s\r\n" indent pat guard body
 
 and TimeOut = TimeOut of Exps * Exps
 
 and Ann<'T> =
     | Constr of 'T      // ^ core erlang construct
     | Ann of 'T * List<Const> // ^ core erlang annotated construct
+(* with *)
+(*     static member prt indent a = *)
+(*         match a with *)
+(*         | Constr t -> *)
+(*             (^T : (static member prt : ^T -> int -> string) indent t) *)
+(*         | _ -> failwith "not imp;" *)
+            (* sprintf "%s'%s'/%i" indent name arity *)
 
 and Function = Function of Atom * int
 with
@@ -100,23 +152,39 @@ and Exp =
     with
     static member prt ((Indent indent) as i) expr =
         match expr with
-        | Var v -> v
+        | Var v -> sprintf "%s%s" indent v
         | Lit lit ->
-            Literal.prt indent lit
+            Literal.prt i lit
         | Lambda (vars, exps) ->
             let expsp = Exps.prt (i+4) exps
             let varsp = String.concat "," vars
             sprintf "%sfun (%s) ->\r\n%s" indent varsp expsp
+        | App (targetExps, args) ->
+            let target = Exps.prt (i+4) targetExps
+            let arity = List.length args
+            let argsp = args |> List.map (Exps.prt i) |> String.concat ","
+            sprintf "%sapply\r\n%s/%i\r\n%s    (%s)" indent target arity indent argsp
         | ModCall ((left, right), args) ->
-            let leftExp = Exps.prt 0 left
+            let leftExp = Exps.prt (i+4) left
             let rightExp = Exps.prt 0 right
             let argsp = args |> List.map (Exps.prt 0) |> String.concat ","
-            sprintf "%scall %s:%s\r\n%s    (%s)" indent leftExp rightExp indent argsp
+            sprintf "%scall\r\n%s:%s\r\n%s    (%s)" indent leftExp rightExp indent argsp
         | Let ((v, e), next) ->
             let vars = String.concat "," v
             let assign = Exps.prt (i+4) e
             let next' = Exps.prt (i+4) next
             sprintf "%slet <%s> =\r\n%s\r\n%sin\r\n%s" indent vars assign indent next'
+        | Case (caseExpr, alts) ->
+            let caseExpr = Exps.prt 0 caseExpr
+            let alts =
+                List.fold(fun s a ->
+                    match a with
+                    | Constr a ->
+                        let x = Alt.prt (i+4) a
+                        sprintf "%s%s\r\n" s x
+                    | x -> failwithf "not imple %A" x) "" alts
+            sprintf "%scase %s of\r\n%send" indent caseExpr alts
+
         | x -> failwithf "%A not implemented" x
 
 and Exps =
@@ -142,8 +210,7 @@ and FunDef = FunDef of Ann<Function> * Ann<Exp>
 and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
     with
     static member prt (Module (Atom name, funs, attribs, defs)) =
-        [ //let m = sprintf "module '%s' [" name
-          let indent = 11 + name.Length
+        [ let indent = 11 + name.Length
           match funs with
           | f :: funs ->
               yield Function.prt 0 f |> sprintf "module '%s' [%s" name

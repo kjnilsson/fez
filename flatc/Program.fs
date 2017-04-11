@@ -97,7 +97,7 @@ module Compiler =
         |> List.map (fun x -> x.FullName, x.FullType.TypeDefinition)
 
     let mkName (name : string) num =
-        if Char.IsLower name.[0] then
+        if Char.IsUpper name.[0] then
             sprintf "%s%i" name num
         else
             sprintf "_%s%i" name num
@@ -130,6 +130,9 @@ module Compiler =
     let modCall left right exps =
         cerl.ModCall ((left, right), exps)
 
+    let apply f args =
+        cerl.App (f, args)
+
     let lambda args expr =
         cerl.Lambda (args, expr)
 
@@ -146,7 +149,14 @@ module Compiler =
         function
         | "op_Multiply" -> Some "*"
         | "op_Addition" -> Some "+"
+        | "op_Subtraction" -> Some "-"
         | _ -> None
+
+    let (|Lit|_|) (o: obj) =
+        match o with
+        | :? int as i -> cerl.LInt i |> Some
+        | x -> None
+
 
     //TODO: should we consult the FSharpType as well?
     let mapConst (o : obj) =
@@ -159,9 +169,38 @@ module Compiler =
         | Intr2Erl x ->
             let erlang = litAtom "erlang" |> constr
             let mul = litAtom x |> constr
-            let exprss, nm = foldNames nm processExpr exprs
-            modCall erlang mul exprss, nm
+            let args, nm = foldNames nm processExpr exprs
+            modCall erlang mul args, nm
+        | name -> //apply
+            let func = litAtom name |> constr
+            let args, nm = foldNames nm processExpr exprs
+            apply func args, nm
         | x ->  failwithf "not implemented %A" x
+
+    and processPat nm (expr : FSharpExpr) : (cerl.Pat * cerl.Guard * Map<string, int>) =
+        match expr with
+        | BasicPatterns.Call (_expr, f, _, _typeSig, [BasicPatterns.Value (_)
+                                                      BasicPatterns.Const (Lit cVal, _)])
+            when f.LogicalName = "op_Equality" ->
+            cerl.PLit cVal, cerl.Guard (litAtom "true" |> constr), nm
+            (* mapCall nm f expressions *)
+        (* | BasicPatterns.Const (o, t) -> *)
+        (*     mapConst o, nm *)
+        | x -> failwithf "not implemented %A" x
+
+    and processITEs d nm expr : (int * (cerl.Pat * cerl.Guard * Map<string, int>)) list =
+        [
+        match expr with
+        | BasicPatterns.IfThenElse(fi, BasicPatterns.DecisionTreeSuccess(idx, []), esle) ->
+            let pat, guard, nm' = processPat nm fi
+            yield idx, (pat, guard, nm')
+            // need to pass orig nm here as each branch need the same outer scope
+            yield! processITEs d nm esle
+        | BasicPatterns.DecisionTreeSuccess(idx, []) ->
+            // TODO PVar - need to pass it
+            yield idx, (cerl.PVar d, cerl.Guard (litAtom "true" |> constr), nm)
+        | x -> failwithf "processITE not impl %A" x ]
+
 
     and processExpr nm (expr : FSharpExpr) : (cerl.Exps * Map<string, int>) =
         let res, nmOut =
@@ -178,6 +217,25 @@ module Compiler =
                 let v', nm = safeVar true nm v.LogicalName
                 let next, nm = processExpr nm expr
                 mkLet v' ass next, nm
+            | BasicPatterns.DecisionTree (BasicPatterns.IfThenElse (iff, thenn, elsee) as e, l) as tree ->
+                printfn "tree %A" tree
+                // hacky way to get at the expr between 'match' and 'with'
+                let v, caseExpr, nm =
+                    match iff with
+                    | BasicPatterns.Call (_, _, _, _, [e1;_]) ->
+                        match processExpr nm e1 with
+                        | cerl.Exp (cerl.Constr (cerl.Var v)) as e, nm -> v, e, nm
+                        | x -> failwithf "caseExprinner not imp %A" x
+                    | x -> failwithf "caseExpr not imp %A" x
+
+                let ites = processITEs v nm e |> Map
+                let alts : List<cerl.Ann<cerl.Alt>> =
+                    l |> List.mapi (fun i (mfvs, e) ->
+                    let pat, grd, nm = ites.[i]
+                    // we can throw away nm now as have branched
+                    let e, _ = processExpr nm e
+                    cerl.Constr <| cerl.Alt (cerl.Pat pat, grd, e))
+                cerl.Case (caseExpr, alts), nm
             | x -> failwithf "not implemented %A" x
         constr res, nmOut
 
