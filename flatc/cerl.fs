@@ -55,7 +55,7 @@ type Literal =
             | LChar c ->
                 sprintf "%s$%c'" indent c
             | LString s ->
-                sprintf "%s\"%s\"'" indent s
+                sprintf "%s\"%s\"" indent s
             | LInt i ->
                 sprintf "%s%i" indent i
             | LAtom (Atom atom) ->
@@ -215,7 +215,7 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
           | f :: funs ->
               yield Function.prt 0 f |> sprintf "module '%s' [%s" name
               for f in funs do
-                  yield Function.prt indent f |> sprintf "%s"
+                  yield Function.prt indent f |> sprintf ",%s"
           | _ -> ()
           yield "]"
           yield ""
