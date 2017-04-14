@@ -53,3 +53,51 @@ inteface?). We _could_ implement something like the old school erlang
 `behaviour_info/1` function.
 
 
+## Discriminated Unions
+
+These could simply be translated into tagged tuples.
+
+E.g:
+```
+
+type Test =
+    | One
+    | Two of int
+
+```
+
+could become a type spec of:
+
+```
+-type 'Test'() :: 'One' | {'Two', integer()}
+```
+
+DUs could also be used to define receive match statements when interacting
+with other erlang modules.
+
+`receive` matches are interesting as there they would need to have erlang
+semantics, i.e. the receive would be _selective_. However we'd declare a total
+fsharp type describing the subset of messages we are matching at a particular time.
+
+Taking the `Test` DU above a receive may look something like in fsharp:
+
+```
+
+match receive<Test>() with
+| One -> ...
+| Two -> ...
+
+```
+
+As `receive` is generic we can use different DUs to describe the messages we
+are matching on at a particular point. This might allow for an interesting
+way to write FSMs where each state would be defined by a separate DU.
+
+In erlang the messages would look like:
+
+```
+
+Pid ! 'One',
+Pid ! {'Two', 42}
+
+```
