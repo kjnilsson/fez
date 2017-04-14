@@ -8,32 +8,6 @@ module Util =
 
     let prtNl() = printf "\r\n"
 
-type Prt =
-    | Prt of (string * Prt) list
-    | Term
-    | Closing of string
-
-let t : Prt =
-    Prt ["module 'test' ['square'/1,", Prt ["'module_info'/0", Term
-                                            "'module_info'/1", Term]
-         "'square'/1", Prt ["fun (_core0) ->",
-                             Prt ["call 'erlang':'*'",
-                                   Prt ["(_core0, core0)", Term]]]
-         "end", Term]
-
-let rec printItem ((Indent ind) as i) (l, p) =
-    printf "%s%s" ind l
-    rend (i+4) p
-and rend i (prt : Prt) =
-    match prt with
-    | Prt items ->
-        for itm in items do
-            printf "%s" System.Environment.NewLine
-            printItem i itm
-    | Closing s -> printf "%s" s
-    | Term -> ()
-
-
 type Var = string
 
 type Atom = Atom of string
@@ -116,13 +90,6 @@ and TimeOut = TimeOut of Exps * Exps
 and Ann<'T> =
     | Constr of 'T      // ^ core erlang construct
     | Ann of 'T * List<Const> // ^ core erlang annotated construct
-(* with *)
-(*     static member prt indent a = *)
-(*         match a with *)
-(*         | Constr t -> *)
-(*             (^T : (static member prt : ^T -> int -> string) indent t) *)
-(*         | _ -> failwith "not imp;" *)
-            (* sprintf "%s'%s'/%i" indent name arity *)
 
 and Function = Function of Atom * int
 with
@@ -184,8 +151,12 @@ and Exp =
                         sprintf "%s%s\r\n" s x
                     | x -> failwithf "not imple %A" x) "" alts
             sprintf "%scase %s of\r\n%send" indent caseExpr alts
+         | Tuple vals ->
+             List.map (Exps.prt 0) vals
+             |> String.concat ","
+             |> sprintf "%s{%s}" indent
 
-        | x -> failwithf "%A not implemented" x
+        | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =
     | Exp of Ann<Exp>        // ^ single expression
@@ -195,7 +166,7 @@ and Exps =
         match expr with
         | Exp (Constr expr) ->
             Exp.prt i expr
-        | _ -> failwith "not impl"
+        | x -> failwithf "Exps.prt not impl: %A" x
 
 and FunDef = FunDef of Ann<Function> * Ann<Exp>
     with
@@ -226,5 +197,6 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
         ]
 
 
+let defaultGuard = Guard (Exp (Constr (Lit (LAtom (Atom "true")))))
 
 let prt = Module.prt >> String.concat System.Environment.NewLine

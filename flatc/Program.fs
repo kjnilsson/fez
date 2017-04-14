@@ -4,6 +4,13 @@ open System
 open System.Reflection
 open System.IO
 open Microsoft.FSharp.Compiler.SourceCodeServices
+open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
+
+module B = BasicPatterns
+
+module Map =
+    let merge m1 m2 =
+        Map.fold (fun s k v -> Map.add k v s) m1 m2
 
 [<AutoOpen>]
 module Util =
@@ -96,6 +103,8 @@ module Compiler =
         |> List.fold (List.append) []
         |> List.map (fun x -> x.FullName, x.FullType.TypeDefinition)
 
+    let altExpr x = cerl.Constr <| cerl.Alt x
+
     let mkName (name : string) num =
         if Char.IsUpper name.[0] then
             sprintf "%s%i" name num
@@ -157,65 +166,141 @@ module Compiler =
         | "op_GreaterThan" -> Some ">"
         | _ -> None
 
-    let (|Lit|_|) (o: obj) =
+    let castLiteral (o: obj) =
         match o with
         | :? int as i -> cerl.LInt i |> Some
+        | :? float as f -> cerl.LFloat f |> Some
+        | :? float32 as f -> cerl.LFloat (float f) |> Some
+        | :? char as c -> cerl.LChar c |> Some
+        | :? string as s -> cerl.LString s |> Some
         | x -> None
+
+    let (|Lit|_|) = castLiteral
 
     //TODO: should we consult the FSharpType as well?
     let mapConst (o : obj) =
         match o with
         | :? int as i -> litInt i
         | :? string as s -> litString s
+        | :? bool as b -> litAtom (string b)
         | x -> failwithf "mapConst: not impl %A" x
 
+    let (|ExprType|_|) ts (e: FSharpExpr) =
+        if e.Type.TypeDefinition.LogicalName = ts then Some e
+        else None
+
     let rec mapCall nm (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exp * Map<string, int>) =
-        match f.LogicalName with
-        | Intr2Erl x ->
+        match f.LogicalName, exprs with
+        | Intr2Erl "+", ExprType "string" _ :: _ ->
+            let erlang = litAtom "erlang" |> constr
+            let stringAppend = litAtom "++" |> constr
+            let args, nm = foldNames nm processExpr exprs
+            modCall erlang stringAppend args, nm
+        | Intr2Erl x, _ ->
             let erlang = litAtom "erlang" |> constr
             let mul = litAtom x |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang mul args, nm
-        | name -> //apply
+        | name, _ -> //apply
             let func = litAtom name |> constr
             let args, nm = foldNames nm processExpr exprs
             apply func args, nm
-        | x ->  failwithf "not implemented %A" x
+        | x, _ ->  failwithf "not implemented %A" x
 
     and extractCaseExpr nm e =
         // hacky way to get at the expr between 'match' and 'with'
         match e with
-        | BasicPatterns.Call (_, _, _, _, [e1;_]) ->
-            match processExpr nm e1 with
-            | cerl.Exp (cerl.Constr (cerl.Var v)) as e, nm -> v, e, nm
-            | x -> failwithf "caseExprinner not imp %A" x
-        | BasicPatterns.Let ((v, e), exps) ->
+        | B.Call (_, _, _, _, [B.Value v as e;_]) ->
             let e, nm = processExpr nm e
-            let v, nm = safeVar true nm v.LogicalName
+            let v, nm = safeVar false nm v.LogicalName
+            v, e, nm
+        | B.Let ((v, e), exps) ->
+            let e, nm = processExpr nm e
+            let v, nm = safeVar false nm v.LogicalName
+            v, e, nm
+        | B.Call (_, _, _, _, [B.TupleGet (fsType, idx, (B.Value v as e)); _]) ->
+            let e, nm = processExpr nm e
+            let v, nm = safeVar false nm v.LogicalName
             v, e, nm
         | x -> failwithf "caseExpr not imp %A" x
 
     and processPat nm (expr : FSharpExpr) : (cerl.Pat * cerl.Guard * Map<string, int>) =
         match expr with
-        | BasicPatterns.Call (_expr, f, _, _typeSig, [BasicPatterns.Value (_)
-                                                      BasicPatterns.Const (Lit cVal, _)])
+        // special case for matching against literal values
+        | B.Call (_expr, f, _, _typeSig, [B.Value (_); B.Const (Lit cVal, _)])
             when f.LogicalName = "op_Equality" ->
             cerl.PLit cVal, cerl.Guard (litAtom "true" |> constr), nm
-        | BasicPatterns.Let ((v, _caseExps), exps) ->
+        | B.Call (_expr, mfv, _, _typeSig, [B.TupleGet (tt, idx, v)
+                                            B.Const (Lit cVal, _)])
+            when mfv.LogicalName = "op_Equality" ->
+            // create inline tuple match
+            let litPat = cerl.PLit cVal
+            let tupleSize = tt.GenericArguments |> Seq.length
+            let tpat = [for i in 0..tupleSize-1 do
+                            if i = idx then yield litPat
+                            else yield cerl.PVar "_" ]
+            cerl.PTuple tpat, cerl.Guard (litAtom "true" |> constr), nm
+        | B.Let ((v, _caseExps), expr) ->
             let v, nm = safeVar true nm v.LogicalName
-            let guardExps, nm = processExpr nm exps
+            let guardExps, nm = processExpr nm expr
             cerl.PVar v, cerl.Guard guardExps, nm
-        | x -> failwithf "not implemented %A" x
+        | B.Call (_expr, f, _, _typeSig, [B.Value v; B.Const (Lit cVal, _)]) as expr ->
+            // try to create a guard from call
+            let v, nm = safeVar true nm v.LogicalName
+            let guardExps, nm = processExpr nm expr
+            cerl.PVar v, cerl.Guard guardExps, nm
+
+        | expr ->
+            failwithf "not implemented %A" expr
 
     and processITEs d nm expr : (int * (cerl.Pat * cerl.Guard * Map<string, int>)) list =
         [
         match expr with
-        | BasicPatterns.IfThenElse(fi, BasicPatterns.DecisionTreeSuccess(idx, []), esle) ->
+        | B.IfThenElse(fi, B.DecisionTreeSuccess(idx, []), esle) ->
             let pat, guard, nm' = processPat nm fi
             yield idx, (pat, guard, nm')
             // need to pass orig nm here as each branch need the same outer scope
             yield! processITEs d nm esle
-        | BasicPatterns.DecisionTreeSuccess(idx, []) ->
+        | B.IfThenElse(fi, neht, esle) ->
+            let pat, guard, nm' = processPat nm fi
+            // need to pass orig nm here as each branch need the same outer scope
+            let thenPats = processITEs d nm neht
+            let idx = match thenPats with
+                      | (idx, _) :: _ -> idx
+                      | _ -> failwith "could not get index"
+            let thenPatsGrouped =
+                (idx, (pat, guard, nm')) :: thenPats
+                |> List.groupBy fst |> Map
+                |> Map.map (fun k v -> List.map snd v)
+
+            let mergePat (a, b) =
+                match (a,b) with
+                | cerl.PTuple aps, cerl.PTuple bps ->
+                    List.zip aps bps
+                    |> List.map (function
+                                 | cerl.PVar "_", b -> b
+                                 | a, cerl.PVar "_" -> a
+                                 | x -> failwithf "dont know how to merge %A" x)
+                    |> cerl.PTuple
+                | x -> failwithf "mergePat not impl %A" x
+
+            // TODO:
+            let mergeGuards (a, b) = a
+            let merged = thenPatsGrouped
+                         |> Map.map (fun _ vs ->
+                                let s = List.head vs
+                                let rest = List.tail vs
+                                List.fold (fun (ps, gs, ctxs)
+                                               (p, g, ctx) ->
+                                                    mergePat (ps, p),
+                                                        mergeGuards (gs, g),
+                                                            ctx)
+                                           s rest)
+
+            printfn "merged %A"  (thenPatsGrouped, merged)
+            yield! merged |> Map.toList
+            yield! processITEs d nm esle
+        | B.DecisionTreeSuccess(idx, []) ->
             // TODO PVar - need to pass it
             yield idx, (cerl.PVar d, cerl.Guard (litAtom "true" |> constr), nm)
         | x -> failwithf "processITE not impl %A" x ]
@@ -224,43 +309,52 @@ module Compiler =
     and processExpr nm (expr : FSharpExpr) : (cerl.Exps * Map<string, int>) =
         let res, nmOut =
             match expr with
-            | BasicPatterns.Call (_expr, f, _, _typeSig, expressions) ->
+            | B.Call (_expr, f, _, _typeSig, expressions) ->
                 mapCall nm f expressions
-            | BasicPatterns.Value v ->
+            | B.Value v ->
                 let v', nm = safeVar false nm v.LogicalName
                 cerl.Var v', nm
-            | BasicPatterns.Const (o, t) ->
+            | B.Const (o, t) ->
                 mapConst o, nm
-            | BasicPatterns.Let ((v, e), expr) as l ->
+            | B.NewTuple (fsType, args) ->
+                let args, nm = foldNames nm processExpr args
+                cerl.Tuple args, nm
+            | B.TupleGet (fsType, idx, e) ->
+                let erlang = litAtom "erlang" |> constr
+                let element = litAtom "element" |> constr
+                let e, nm = processExpr nm e
+                let idx = idx+1 |> cerl.LInt
+                modCall erlang element [cerl.Lit idx |> constr; e], nm
+            | B.Let ((v, e), expr) as l ->
                 let ass, nm = processExpr nm e
                 let v', nm = safeVar true nm v.LogicalName
                 let next, nm = processExpr nm expr
                 mkLet v' ass next, nm
-            | BasicPatterns.IfThenElse (BasicPatterns.Let((v, e), _) as fi, neht, esle) ->
+            | B.IfThenElse (fi, neht, esle) ->
                 //plain if then else without decision tree
                 let caseExprVar, caseExpr, nm = extractCaseExpr nm fi
                 let pat, guard, nm' = processPat nm fi
                 let thenExps, _ = processExpr nm' neht
                 let elseExps, _ = processExpr nm esle
-                let defPat, defGuard = (cerl.PVar caseExprVar, cerl.Guard (litAtom "true" |> constr))
-
-                let alts = [
-                    cerl.Constr <| cerl.Alt (cerl.Pat pat, guard, thenExps)
-                    cerl.Constr <| cerl.Alt (cerl.Pat defPat, defGuard, elseExps) ]
+                let defPat = cerl.PVar caseExprVar
+                let defGuard = cerl.defaultGuard
+                let alts = [altExpr (cerl.Pat pat, guard, thenExps)
+                            altExpr (cerl.Pat defPat, defGuard, elseExps)]
 
                 cerl.Case (caseExpr, alts), nm
-            | BasicPatterns.DecisionTree (BasicPatterns.IfThenElse (fi, _, _) as e, l) as tree ->
-                (* printfn "tree %A" tree *)
+            | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, l) as tree ->
+                printfn "tree %A" tree
                 // TODO: it wont always be vars
                 let caseExprVar, caseExpr, nm = extractCaseExpr nm fi
-
-                let ites = processITEs caseExprVar nm e |> Map
+                let ites = processITEs caseExprVar nm ite |> Map
                 let alts : List<cerl.Ann<cerl.Alt>> =
-                    l |> List.mapi (fun i (mfvs, e) ->
-                    let pat, grd, nm = ites.[i]
-                    // we can throw away nm now as have branched
-                    let e, _ = processExpr nm e
-                    cerl.Constr <| cerl.Alt (cerl.Pat pat, grd, e))
+                    l
+                    |> List.mapi (fun i (mfvs, e) ->
+                            let pat, grd, nm = ites.[i]
+                            // we can throw away nm now as have branched
+                            let e, _ = processExpr nm e
+                            // TODO if e is a let it should be in pattern
+                            altExpr (cerl.Pat pat, grd, e))
                 cerl.Case (caseExpr, alts), nm
             | x -> failwithf "not implemented %A" x
         constr res, nmOut
@@ -305,6 +399,7 @@ let main argv =
         for implFile in res.AssemblyContents.ImplementationFiles do
           for decl in implFile.Declarations do
               let m = processDecl decl
+              (* printfn "%A" m *)
               cerl.prt m |> printfn "%s"
         0
     | _ ->
