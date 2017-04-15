@@ -177,6 +177,12 @@ module Compiler =
 
     let (|Lit|_|) = castLiteral
 
+    let tupleGet idx e =
+        let erlang = litAtom "erlang" |> constr
+        let element = litAtom "element" |> constr
+        let idx = idx+1 |> cerl.LInt
+        modCall erlang element [cerl.Lit idx |> constr; e]
+
     //TODO: should we consult the FSharpType as well?
     let mapConst (o : obj) =
         match o with
@@ -297,7 +303,7 @@ module Compiler =
                                                             ctx)
                                            s rest)
 
-            printfn "merged %A"  (thenPatsGrouped, merged)
+            (* printfn "merged %A"  (thenPatsGrouped, merged) *)
             yield! merged |> Map.toList
             yield! processITEs d nm esle
         | B.DecisionTreeSuccess(idx, []) ->
@@ -343,7 +349,7 @@ module Compiler =
 
                 cerl.Case (caseExpr, alts), nm
             | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, l) as tree ->
-                printfn "tree %A" tree
+                (* printfn "tree %A" tree *)
                 // TODO: it wont always be vars
                 let caseExprVar, caseExpr, nm = extractCaseExpr nm fi
                 let ites = processITEs caseExprVar nm ite |> Map
@@ -356,6 +362,20 @@ module Compiler =
                             // TODO if e is a let it should be in pattern
                             altExpr (cerl.Pat pat, grd, e))
                 cerl.Case (caseExpr, alts), nm
+            | B.FSharpFieldGet (Some e, t, fld) ->
+                // TODO when would the expr be None here
+                let tupleIndex =
+                    t.TypeDefinition.FSharpFields
+                    |> Seq.findIndex ((=) fld)
+                    |> (+) 1
+                let e, nm = processExpr nm e
+                tupleGet tupleIndex e, nm
+            | B.NewRecord (t, args) ->
+                let args, nm = foldNames nm processExpr args
+                //type to atom
+                let recordName =
+                    litAtom t.TypeDefinition.LogicalName |> constr
+                cerl.Tuple (recordName :: args), nm
             | x -> failwithf "not implemented %A" x
         constr res, nmOut
 
@@ -363,29 +383,38 @@ module Compiler =
     let processModDecl decl =
       match decl with
       | MemberOrFunctionOrValue(memb, Parameters ps, expr)
-          when memb.IsModuleValueOrMember ->
-              (* printfn "expr %A" expr *)
+          when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
+              printfn "memb %A" memb.LogicalName
+              (* failwithf "expr %A" expr *)
               let nm = Map.empty
               let args, nm = foldNames nm (safeVar true) (List.map fst ps)
               let e, nm = processExpr nm expr
               let l = lambda args e
               //TODO make function name safe
               let f = mkFunction memb.LogicalName (List.length ps)
-              f, funDef f l
+              Some (f, funDef f l)
+      | Entity(ent, declList) when ent.IsFSharpRecord ->
+          printfn "cannot process record %+A" (ent.FSharpFields |> Seq.toList)
+          None
+      |  MemberOrFunctionOrValue(x, _, _) ->
+          printfn "cannot process %A" x.LogicalName
+          None
       | x -> failwithf "cannot process %A" x
 
 
     let processDecl decl =
       match decl with
-      | Entity(ent, declList) when ent.IsFSharpModule ->
+      | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
           let (funs, funDefs) =
-              declList
-              |> List.map processModDecl
+              implFileDecls
+              |> List.choose processModDecl
               |> List.unzip
           cerl.Module (cerl.Atom ent.LogicalName, funs, [], funDefs)
       | InitAction(expr) ->
           failwithf "Init Action not supported %A" expr
-      | x -> failwithf "cannot process %A" x
+      | Entity(ent, declList) ->
+          failwithf "cannot process record %+A" ent.TryGetMembersFunctionsAndValues
+      | x -> failwithf "cannot process %+A" x
 
 [<EntryPoint>]
 let main argv =
@@ -398,8 +427,8 @@ let main argv =
         let decs = res.AssemblyContents.ImplementationFiles.Head.Declarations
         for implFile in res.AssemblyContents.ImplementationFiles do
           for decl in implFile.Declarations do
+              (* failwithf "%A" decl *)
               let m = processDecl decl
-              (* printfn "%A" m *)
               cerl.prt m |> printfn "%s"
         0
     | _ ->
