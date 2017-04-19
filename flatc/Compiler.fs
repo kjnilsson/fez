@@ -121,6 +121,7 @@ module Compiler =
            | n -> n
     """
 
+
     let check (checker : FSharpChecker) options (FullPath file) fileContents =
         let res = checker.ParseAndCheckProject options |> run
         if res.HasCriticalErrors then
@@ -282,7 +283,7 @@ module Compiler =
         | B.Call (_expr, mfv, _, _fsType, [left; right])
             when mfv.LogicalName = "op_Equality" ->
 
-            printfn "bah %A %A" _expr expr
+            (* printfn "bah %A %A" _expr expr *)
             let leftExps, nm = processExpr nm left
             let rightExps, nm = processExpr nm right
             let eq = litAtom "=:=" |> constr
@@ -290,7 +291,26 @@ module Compiler =
             cerl.PVar "_", cerl.Guard guardExps, nm
             (* cerl.PList (cerl.LL ([cerl.PLit cVal], cerl.PVar "_")), cerl.defaultGuard, nm *)
                 //list pattern constant
-        | B.Let ((v, _caseExps), expr) ->
+        | B.Let ((v, B.UnionCaseGet(_, IsFSharpList t, _, IsField "Tail" fld)), expr) ->
+            (* printfn "processPat let tail expr %A" expr *)
+            let v, nm = safeVar true nm v.LogicalName
+            let thisPat = cerl.PList (cerl.LL ([], cerl.PVar v))
+            // recurse over let binding patterns
+            // maybe all this should be guards
+            let guard, nm = processExpr nm expr
+            let pat = thisPat
+            pat, cerl.Guard guard, nm
+            (* let nextPat, guard, nm = processPat nm expr *)
+            (* let pat = cerl.mergePat (thisPat,  nextPat) *)
+            (* pat, guard, nm *)
+        | B.Let ((v, B.UnionCaseGet(_, IsFSharpList t, _, IsField "Head" fld)), expr) ->
+            let v, nm = safeVar true nm v.LogicalName
+            (* printfn "processPat let head this %A gurad %A expr %A" thisPat guard expr *)
+            let thisPat = cerl.PList(cerl.LL ([cerl.PVar v], cerl.PVar "_"))
+            let guard, nm = processExpr nm expr
+            let pat = thisPat
+            pat, cerl.Guard guard, nm
+        | B.Let ((v, caseExps), expr) ->
             let v, nm = safeVar true nm v.LogicalName
             let guardExps, nm = processExpr nm expr
             cerl.PVar v, cerl.Guard guardExps, nm
@@ -299,7 +319,7 @@ module Compiler =
             let v, nm = safeVar true nm v.LogicalName
             let guardExps, nm = processExpr nm expr
             cerl.PVar v, cerl.Guard guardExps, nm
-        | B.UnionCaseTest (e, IsFSharpList t, c) when c.CompiledName = "Cons" ->
+        | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
             //Cons cell without any name bindings
             cerl.PList (cerl.LL ([cerl.PVar "_"], cerl.PVar "_")), cerl.defaultGuard, nm
             (* failwithf "processPat: %+A %+A %+A" e c.CompiledName c.Name *)
@@ -329,10 +349,16 @@ module Compiler =
 
             (* printfn " thenPatsGrouped%A"  (thenPatsGrouped) *)
             // TODO:
+            let wrap a (cerl.Guard b) =
+                let alt1 = altExpr (cerl.Pats [], a, b)
+                let alt2 = altExpr (cerl.Pats [], cerl.defaultGuard, litAtom "false" |> constr)
+                cerl.Guard (constr <| cerl.Case (cerl.Exps (cerl.Constr []), [alt1;alt2]))
 
             let mergeGuards (a, b) =
                             if a = cerl.defaultGuard then b
-                            else a
+                            elif b = cerl.defaultGuard then a
+                            else wrap a b
+
             let merged = thenPatsGrouped
                          |> List.map (fun (k, vs) ->
                                 let s = List.head vs
@@ -397,7 +423,7 @@ module Compiler =
                 | x -> failwithf "unexpected if then else result %A" x
 
             | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, l) as tree ->
-                let (lvals, l2) = List.head l
+                (* let (lvals, l2) = List.head l *)
                 (* printfn "ite %A l %A" ite  l *)
                 // TODO: it wont always be vars
                 let caseExprVar, caseExpr, nm = extractCaseExpr nm fi
@@ -408,33 +434,6 @@ module Compiler =
                                                 idx, (targetValueExprs, v)
                                             | x -> failwithf "unexpected %A" x)
                            |> Map
-
-                (* let namedPattern (hds : cerl.Pat list, tl, outV : FSharpMemberOrFunctionOrValue option) (v : string,  e) = *)
-                (*     let rec depth e (n, v) = *)
-                (*         match e with *)
-                (*         | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas, *)
-                (*                          IsField "Head" fld) -> *)
-                (*              depth value (n+1, v) *)
-                (*         | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas, *)
-                (*                          IsField "Tail" fld) -> *)
-                (*              depth value (n+1, v) *)
-                (*         | B.Value v -> (n, Some v) *)
-                (*         | x -> failwithf "depth unexecpected %A" x *)
-                (*     match e with *)
-                (*     | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas, *)
-                (*                      IsField "Head" fld) -> *)
-                (*          let (d, outV) = depth value (0, None) *)
-                (*          let w = cerl.PVar "_" *)
-                (*          let pad = List.replicate (d - hds.Length) w *)
-                (*          hds @ pad @ [cerl.PVar v], *)
-                (*              tl, outV *)
-                (*     | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas, *)
-                (*                      IsField "Tail" fld) -> *)
-                (*          let (d, outV) = depth value (0, None) *)
-                (*          let v = cerl.PVar v *)
-                (*          let pad = List.replicate (max 0 (d - hds.Length)) (cerl.PVar "_") *)
-                (*          hds @ pad, Some v, outV *)
-                (*     | x -> failwithf "procValues not impl %A" x *)
 
                 let alts : List<cerl.Ann<cerl.Alt>> =
                     l

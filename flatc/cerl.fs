@@ -89,7 +89,10 @@ with
     static member prt pats =
         match pats with
         | Pat p -> sprintf "<%s>" (Pat.prt p)
-        | pl -> failwithf "not impl %A" pl
+        | Pats ps ->
+            ps |> List.map Pat.prt
+            |> String.concat ","
+            |> sprintf "<%s>"
 
 and Alt = Alt of Pats * Guard * Exps
 with
@@ -176,6 +179,8 @@ and Exps =
     | Exp of Ann<Exp>        // ^ single expression
     | Exps of Ann<Ann<Exp> list> // ^ list of expressions
     with
+    static member empty =
+        Exps (Constr [])
     static member prt ((Indent indent) as i) expr =
         match expr with
         | Exp (Constr expr) ->
