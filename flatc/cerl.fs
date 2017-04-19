@@ -37,8 +37,18 @@ type Literal =
             | x -> failwithf "%A not impl" x
 
 type ExprList<'T> =
-    | L of 'T
-    | LL of List<'T> * 'T
+    | L of 'T list // no tail expr
+    | LL of 'T list * 'T //head elements * tail
+with
+    static member prt printT l =
+        match l with
+        | L ls ->
+            let heads = String.concat "," (List.map printT ls)
+            sprintf "[%s]" heads
+        | LL (ls, tail) ->
+            let t = printT tail
+            let heads = String.concat "," (List.map printT ls)
+            sprintf "[%s|%s]" heads t
 
 type Const =
     | CLit of Literal
@@ -62,6 +72,10 @@ with
         | PTuple tup ->
             let pats = List.map Pat.prt tup
             sprintf "{%s}" (String.concat "," pats)
+        | PList (LL(hds, tl)) ->
+            let hds = List.map Pat.prt hds
+            let tl = Pat.prt tl
+            sprintf "[%s | %s]" (String.concat "," hds) tl
         | x -> failwithf "Pat.prt not impl %A" x
 
 and Alias = Alias of Var * Pat
@@ -106,7 +120,7 @@ and Exp =
     | ModCall of (Exps * Exps) * List<Exps> // ^ module call
     | Lambda of List<Var> * Exps          // ^ lambda expression
     | Seq of Exps * Exps              // ^ sequencing
-    | Let of (List<Var> * Exps) * Exps      // ^ local declaration
+    | Let of (Var list * Exps) * Exps      // ^ local declaration
     | LetRec of List<FunDef> * Exps       // ^ letrec expression
     | Case of Exps * List<Ann<Alt>>        // ^ @case@ /exp/ @of@ /alts/ end
     | Tuple of List<Exps>               // ^ tuple expression
@@ -132,15 +146,15 @@ and Exp =
             let argsp = args |> List.map (Exps.prt i) |> String.concat ","
             sprintf "%sapply\r\n%s/%i\r\n%s    (%s)" indent target arity indent argsp
         | ModCall ((left, right), args) ->
-            let leftExp = Exps.prt (i+4) left
+            let leftExp = Exps.prt 0 left
             let rightExp = Exps.prt 0 right
             let argsp = args |> List.map (Exps.prt 0) |> String.concat ","
-            sprintf "%scall\r\n%s:%s\r\n%s    (%s)" indent leftExp rightExp indent argsp
+            sprintf "%scall %s:%s(%s)" indent leftExp rightExp argsp
         | Let ((v, e), next) ->
             let vars = String.concat "," v
             let assign = Exps.prt (i+4) e
-            let next' = Exps.prt (i+4) next
-            sprintf "%slet <%s> =\r\n%s\r\n%sin\r\n%s" indent vars assign indent next'
+            let next' = Exps.prt 0 next
+            sprintf "%slet <%s> = %s\r\n%sin %s" indent vars assign indent next'
         | Case (caseExpr, alts) ->
             let caseExpr = Exps.prt 0 caseExpr
             let alts =
@@ -160,12 +174,19 @@ and Exp =
 
 and Exps =
     | Exp of Ann<Exp>        // ^ single expression
-    | Exps of Ann<List<Ann<Exp>>> // ^ list of expressions
+    | Exps of Ann<Ann<Exp> list> // ^ list of expressions
     with
     static member prt ((Indent indent) as i) expr =
         match expr with
         | Exp (Constr expr) ->
             Exp.prt i expr
+        | Exps (Constr expr) ->
+            let exps =
+                expr
+                |> List.choose (function
+                                | Constr e -> Some (Exp.prt 0 e)
+                                | _ -> None)
+            sprintf "<%s>" (String.concat "," exps)
         | x -> failwithf "Exps.prt not impl: %A" x
 
 and FunDef = FunDef of Ann<Function> * Ann<Exp>
@@ -190,7 +211,7 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
           | _ -> ()
           yield "]"
           yield ""
-          yield "    attributes []" //TODO
+          yield "    attributes []" //TODO:
           for d in defs do
               yield FunDef.prt d |> sprintf "%s"
           yield "end"
@@ -198,5 +219,20 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
 
 
 let defaultGuard = Guard (Exp (Constr (Lit (LAtom (Atom "true")))))
+
+let rec mergePat (a, b) =
+    match (a,b) with
+    | PList (LL (heads, tails)),
+        PList (LL (heads2, tails2)) ->
+        let tails = mergePat (tails, tails2)
+        let heads = heads @ heads2
+        PList (LL (heads, tails))
+    | PTuple aps, PTuple bps ->
+        List.zip aps bps
+        |> List.map mergePat
+        |> PTuple
+    | PVar "_", b -> b
+    | a, PVar "_" -> a
+    | x -> failwithf "mergePat not impl %A" x
 
 let prt = Module.prt >> String.concat System.Environment.NewLine

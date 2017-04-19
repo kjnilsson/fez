@@ -5,11 +5,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="cerl.fs" />
+    <Compile Include="Compiler.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="FSharp.Compiler.Service" Version="12.0.2" />
-    <PackageReference Include="FSharp.Core" Version="4.1.*" />
+    <PackageReference Include="FSharp.Compiler.Service" Version="*" />
+    <PackageReference Include="FSharp.Core" Version="*" />
     <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
   </ItemGroup>
   <Target Name="_Inspect_FscArgs"

@@ -1,10 +1,21 @@
 module test2
 
+let try_head l =
+    match l with
+    | 1 :: _ :: h :: t -> Some (h)
+    | _ -> None
+
+(*
 type my_rec = {name: string; age: int}
 
 let age r = r.age
 
 let bday ({age = age} as p) = {p with age = age + 1}
+
+let try_head l =
+    match l with
+    | _ :: _ :: h :: t -> Some (h)
+    | _ -> None
 
 let rec sum n =
     match n with
@@ -24,3 +35,5 @@ let tuple =
     | (2, s) -> s + s
     | (3, ("three" as s)) -> s + s
     | (_, _) -> "many"
+
+    *)
