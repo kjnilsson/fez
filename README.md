@@ -1,6 +1,6 @@
 # FEZ - an fsharp to core erlang experiment
 
-###What is it?
+### What is it?
 
 Fez is an early doors experiment in compiling [fsharp](http://fsharp.org) to
 [BEAM](https://github.com/erlang/otp) compatible
@@ -17,7 +17,7 @@ See [thoughts.md](https://github.com/kjnilsson/fez/blob/HEAD/test/basics.fs)
 for some discussions on potential implementation approaches.
 
 
-###Getting started
+### Getting started
 
 Currently the scripts are only unix compatible but should be easy to translate.
 
@@ -44,7 +44,7 @@ after this you can:
 to try to compile fsharp modules to core erlang -> beam.
 
 
-###How can I help?
+### How can I help?
 
 Try it! Read [thoughts.md](https://github.com/kjnilsson/fez/blob/HEAD/test/basics.fs)
 and raise issues with the smallest possible repro program bearing in mind that the current
