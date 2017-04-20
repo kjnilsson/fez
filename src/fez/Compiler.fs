@@ -254,22 +254,14 @@ module Compiler =
     and extractCaseExpr nm e =
         // hacky way to get at the expr between 'match' and 'with'
         match e with
-        | B.Call (_, _, _, _, [B.Value v as e;_]) ->
-            let e, nm = processExpr nm e
-            (* let v, nm = safeVar false nm v.LogicalName *)
-            e, nm
+        | B.Call (_, _, _, _, [B.Value _ as e;_]) ->
+            processExpr nm e
         | B.Let ((v, e), exps) ->
-            let e, nm = processExpr nm e
-            (* let v, nm = safeVar false nm v.LogicalName *)
-            e, nm
-        | B.Call (_, _, _, _, [B.TupleGet (fsType, idx, (B.Value v as e)); _]) ->
-            let e, nm = processExpr nm e
-            (* let v, nm = safeVar false nm v.LogicalName *)
-            e, nm
-        | B.UnionCaseTest (B.Value v as e, t, c) ->
-            let e, nm = processExpr nm e
-            (* let v, nm = safeVar false nm v.LogicalName *)
-            e, nm
+            processExpr nm e
+        | B.Call (_, _, _, _, [B.TupleGet (_, _, (B.Value _ as e)); _]) ->
+            processExpr nm e
+        | B.UnionCaseTest (B.Value _ as e, _, _) ->
+            processExpr nm e
         | x -> failwithf "extractCaseExpr not imp %A" x
 
     and processPat nm (expr : FSharpExpr) : (cerl.Pat * cerl.Guard * Map<string, int>) =
@@ -296,17 +288,16 @@ module Compiler =
             let guardExps = modCall erlang eq [leftExps; rightExps] |> constr
             cerl.PVar "_", cerl.Guard guardExps, nm
         | B.Let ((v, B.UnionCaseGet(_, IsFSharpList t, _, IsField "Tail" fld)), expr) ->
+            // list cons pattern on tail
             (* printfn "processPat let tail expr %A" expr *)
             let v, nm = safeVar true nm v.LogicalName
             let thisPat = cerl.PList (cerl.LL ([], cerl.PVar v))
-            // recurse over let binding patterns
-            // maybe all this should be guards
             let guard, nm = processExpr nm expr
             let pat = thisPat
             pat, cerl.Guard guard, nm
         | B.Let ((v, B.UnionCaseGet(_, IsFSharpList t, _, IsField "Head" fld)), expr) ->
+            // list cons pattern on head
             let v, nm = safeVar true nm v.LogicalName
-            (* printfn "processPat let head this %A gurad %A expr %A" thisPat guard expr *)
             let thisPat = cerl.PList(cerl.LL ([cerl.PVar v], cerl.PVar "_"))
             let guard, nm = processExpr nm expr
             let pat = thisPat
@@ -387,8 +378,7 @@ module Compiler =
                         cerl.Case (caseExpr, alts), nm
                 | x -> failwithf "unexpected if then else result %A" x
 
-            | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, l) as tree ->
-                (* let (lvals, l2) = List.head l *)
+            | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
                 (* printfn "ite %A \r\nl %A" ite  l *)
                 // TODO: it wont always be vars
                 let caseExpr, nm = extractCaseExpr nm fi
@@ -407,14 +397,14 @@ module Compiler =
                                                 idx, (targetValueExprs, v)
                                             | x -> failwithf "unexpected %A" x)
 
-                let lmap = l |> List.mapi (fun i v -> i,v) |> Map
+                let branchMap = branches |> List.mapi (fun i v -> i, v) |> Map
                 (* printfn "lmap %A" lmap *)
                 (* printfn "ites %A" ites *)
                 let alts : List<cerl.Ann<cerl.Alt>> =
                     ites
                     |> List.map (fun (i, (valueExprs, (pat, grd, nm))) ->
                             //merge mfvs with valueExprs + pat
-                            let mfvs, e = lmap.[i]
+                            let mfvs, e = branchMap.[i]
                             let mfvs = mfvs |> List.map (fun v -> v.CompiledName)
                             let assignments, mn =
                                 List.zip mfvs valueExprs
@@ -424,7 +414,6 @@ module Compiler =
                                     ((v, e) :: agg), nm) ([], nm)
 
                             let e, _ = processExpr nm e
-                            (* printfn "merged pat %A" pat *)
                             let vls = List.map fst assignments
                             let es = List.choose (fun (_, e) ->
                                             match e with
@@ -433,8 +422,7 @@ module Compiler =
                             let e =
                                 cerl.Let ((vls, cerl.Exps (cerl.Constr es)), e)
                             // we can throw away nm now as have branched
-
-                            // TODO if e is a let it should be in pattern
+                            // TODO if e is a let it should be in pattern?
                             altExpr (cerl.Pat pat, grd, e |> constr))
                 cerl.Case (caseExpr, alts), nm
             | B.FSharpFieldGet (Some e, t, fld) ->
@@ -470,8 +458,6 @@ module Compiler =
       match decl with
       | MemberOrFunctionOrValue(memb, Parameters ps, expr)
           when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
-              (* printfn "memb %A" memb.LogicalName *)
-              (* failwithf "expr %A" expr *)
               let nm = Map.empty
               let args, nm = foldNames nm (safeVar true) (List.map fst ps)
               let e, nm = processExpr nm expr
@@ -480,7 +466,6 @@ module Compiler =
               let f = mkFunction memb.LogicalName (List.length ps)
               Some (f, funDef f l)
       | Entity(ent, declList) when ent.IsFSharpRecord ->
-          (* printfn "cannot process record %+A" (ent.FSharpFields |> Seq.toList) *)
           None
       |  MemberOrFunctionOrValue(x, _, _) ->
           (* printfn "cannot process %A" x.LogicalName *)
