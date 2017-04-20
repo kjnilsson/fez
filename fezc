@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# vi: ft=bash
+
+CUR_DIR=$(pwd)
+set -e
+filename=$1
+filedir=$(dirname $1)
+filename=$(basename "$1")
+filename=${filename%.*}
+name=$filedir/$filename.core
+echo "compiling: $name"
+dotnet run -p src/fez/fez.fsproj $1 > $name
+# ./ce.escript fmt $name > $name
+cat $name
+erlc -o $filedir $name 
+

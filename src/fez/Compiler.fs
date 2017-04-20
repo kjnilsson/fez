@@ -1,4 +1,4 @@
-﻿module Flat.Compiler
+﻿module Fez.Compiler
 
 open System
 open System.Reflection

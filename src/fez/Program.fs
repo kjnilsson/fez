@@ -1,9 +1,9 @@
-﻿module Flat.Program
+﻿module Fez.Program
 
 open System
 open System.Reflection
 open System.IO
-open Flat.Compiler
+open Fez.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 [<EntryPoint>]

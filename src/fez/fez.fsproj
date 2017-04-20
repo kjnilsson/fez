@@ -13,19 +13,13 @@
     <PackageReference Include="FSharp.Core" Version="*" />
     <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
   </ItemGroup>
-  <Target Name="_Inspect_FscArgs"
-          DependsOnTargets="ResolveReferences;CoreCompile">
+  <ItemGroup>
+    <ProjectReference Include="..\fez.core\fez.core.fsproj" />
+  </ItemGroup>
+  <Target Name="_Inspect_FscArgs" DependsOnTargets="ResolveReferences;CoreCompile">
     <Message Text="%(FscCommandLineArgs.Identity)" Importance="High" />
-    <WriteLinesToFile
-            Condition=" '$(_Inspect_FscArgs_OutFile)' != '' "
-            File="$(_Inspect_FscArgs_OutFile)"
-            Lines="@(FscCommandLineArgs -> '%(Identity)')"
-            Overwrite="true" 
-            Encoding="UTF-8"/>
+    <WriteLinesToFile Condition=" '$(_Inspect_FscArgs_OutFile)' != '' " File="$(_Inspect_FscArgs_OutFile)" Lines="@(FscCommandLineArgs -> '%(Identity)')" Overwrite="true" Encoding="UTF-8" />
     <!-- WriteLinesToFile doesnt create the file if @(FscCommandLineArgs) is empty -->
-    <Touch
-        Condition=" '$(_Inspect_FscArgs_OutFile)' != '' "
-        Files="$(_Inspect_FscArgs_OutFile)"
-        AlwaysCreate="True" />
+    <Touch Condition=" '$(_Inspect_FscArgs_OutFile)' != '' " Files="$(_Inspect_FscArgs_OutFile)" AlwaysCreate="True" />
   </Target>
 </Project>
