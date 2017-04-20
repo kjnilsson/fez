@@ -11,6 +11,6 @@ name=$filedir/$filename.core
 echo "compiling: $name"
 dotnet run -p src/fez/fez.fsproj $1 > $name
 # ./ce.escript fmt $name > $name
-cat $name
+# cat $name
 erlc -o $filedir $name 
 

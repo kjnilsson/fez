@@ -214,12 +214,15 @@ module Compiler =
         let idx = idx+1 |> cerl.LInt
         modCall erlang element [cerl.Lit idx |> constr; e]
 
+    let toLowerString (o:obj) =
+        o.ToString().ToLower()
+
     //TODO: should we consult the FSharpType as well?
     let mapConst (o : obj) =
         match o with
         | :? int as i -> litInt i
         | :? string as s -> litString s
-        | :? bool as b -> litAtom (string b)
+        | :? bool as b -> litAtom (toLowerString b)
         | x -> failwithf "mapConst: not impl %A" x
 
     let (|ExprType|_|) ts (e: FSharpExpr) =
