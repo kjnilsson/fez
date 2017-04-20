@@ -12,5 +12,5 @@ echo "compiling: $name"
 dotnet run -p src/fez/fez.fsproj $1 > $name
 # ./ce.escript fmt $name > $name
 # cat $name
-erlc -o $filedir $name 
+erlc -v -o $filedir $name
 

@@ -3,7 +3,7 @@ module basics
 let try_head l =
     match l with
     | h :: _ -> Some h
-    | _ -> None
+    | [] -> None
 
 let try_match_a_list l =
     match l with

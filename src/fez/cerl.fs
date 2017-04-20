@@ -24,16 +24,18 @@ type Literal =
     | LAtom of Atom      // ^ atom literal
     | LNil              // ^ empty list
     with
-        static member prt (Indent indent) lit =
+        static member prt lit =
             match lit with
             | LChar c ->
-                sprintf "%s$%c'" indent c
+                sprintf "$%c'" c
             | LString s ->
-                sprintf "%s\"%s\"" indent s
+                sprintf "\"%s\"" s
             | LInt i ->
-                sprintf "%s%i" indent i
+                sprintf "%i" i
             | LAtom (Atom atom) ->
-                sprintf "%s'%s'" indent atom
+                sprintf "'%s'" atom
+            | LNil ->
+                "[]"
             | x -> failwithf "%A not impl" x
 
 type ExprList<'T> =
@@ -68,7 +70,7 @@ with
     static member prt pat =
         match pat with
         | PVar v -> v
-        | PLit l -> Literal.prt 0 l
+        | PLit l -> Literal.prt l
         | PTuple tup ->
             let pats = List.map Pat.prt tup
             sprintf "{%s}" (String.concat "," pats)
@@ -138,7 +140,7 @@ and Exp =
         match expr with
         | Var v -> sprintf "%s%s" indent v
         | Lit lit ->
-            Literal.prt i lit
+            Literal.prt lit
         | Lambda (vars, exps) ->
             let expsp = Exps.prt (i+4) exps
             let varsp = String.concat "," vars
@@ -155,7 +157,7 @@ and Exp =
             sprintf "%scall %s:%s(%s)" indent leftExp rightExp argsp
         | Let ((v, e), next) ->
             let vars = String.concat "," v
-            let assign = Exps.prt (i+4) e
+            let assign = Exps.prt 0 e
             let next' = Exps.prt 0 next
             sprintf "%slet <%s> = %s\r\n%sin %s" indent vars assign indent next'
         | Case (caseExpr, alts) ->
@@ -239,5 +241,23 @@ let rec mergePat (a, b) =
     | PVar "_", b -> b
     | a, PVar "_" -> a
     | x -> failwithf "mergePat not impl %A" x
+
+let constr x =
+    Exp (Constr x)
+
+let altExpr x = Constr <| Alt x
+
+let litAtom name =
+    Lit (LAtom (Atom name))
+
+let wrap a (Guard b) =
+    let alt1 = altExpr (Pats [], a, b)
+    let alt2 = altExpr (Pats [], defaultGuard, litAtom "false" |> constr)
+    Guard (constr <| Case (Exps (Constr []), [alt1;alt2]))
+
+let mergeGuards (a, b) =
+                if a = defaultGuard then b
+                elif b = defaultGuard then a
+                else wrap a b
 
 let prt = Module.prt >> String.concat System.Environment.NewLine
