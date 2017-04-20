@@ -101,3 +101,20 @@ Pid ! 'One',
 Pid ! {'Two', 42}
 
 ```
+
+
+
+## MailboxProcessor
+
+It's like erlang processes right? ;)
+
+No it is not. MailboxProcessors have .NET semantics and are fully typed.
+Erlang processes always use selective receive. MailboxProcessors are quite
+unnecessary. See DU discussion above.
+
+
+## System.*
+
+System.* namespace pretty much means .NET. I don't think it makes sense
+to try to implement any of System.*. Instead it is better to provide an
+easy FFI to call erlang modules and provide typed responses.
