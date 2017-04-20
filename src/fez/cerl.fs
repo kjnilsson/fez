@@ -138,18 +138,19 @@ and Exp =
     with
     static member prt ((Indent indent) as i) expr =
         match expr with
-        | Var v -> sprintf "%s%s" indent v
+        | Var v -> sprintf "%s" v
         | Lit lit ->
             Literal.prt lit
         | Lambda (vars, exps) ->
             let expsp = Exps.prt (i+4) exps
             let varsp = String.concat "," vars
             sprintf "%sfun (%s) ->\r\n%s" indent varsp expsp
+        | Fun (Function (Atom name, arity)) ->
+            sprintf "'%s'/%i" name arity
         | App (targetExps, args) ->
             let target = Exps.prt (i+4) targetExps
-            let arity = List.length args
             let argsp = args |> List.map (Exps.prt i) |> String.concat ","
-            sprintf "%sapply\r\n%s/%i\r\n%s    (%s)" indent target arity indent argsp
+            sprintf "%sapply %s (%s)" indent target argsp
         | ModCall ((left, right), args) ->
             let leftExp = Exps.prt 0 left
             let rightExp = Exps.prt 0 right

@@ -1,5 +1,8 @@
 module basics
 
+//Application
+let flip f a b = f b a
+
 let try_head l =
     match l with
     | h :: _ -> Some h

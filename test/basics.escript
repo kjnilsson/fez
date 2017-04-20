@@ -4,6 +4,9 @@
 
 main([]) ->
     true = code:add_pathz(filename:dirname(escript:script_name())),
+    io:format("-testing basics:flip~n"),
+    "therehi" = basics:flip(fun erlang:'++'/2, "hi", "there"),
+
     io:format("-testing basics:try_head~n"),
     {'Some', 1} = basics:try_head([1]),
     {'None'} = basics:try_head([]),

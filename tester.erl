@@ -2,12 +2,15 @@
 -export([square/1, squarelPlusOne/1, num/1, name/1, sum/1, just_n/1,
          blah/1, tuple/1, fact_fun/0, guards/1, maybe_head/1,
          listtest/1,
-         strange_list/1
+         strange_list/1,
+         flip/3
         ]).
 
 -include_lib("test.hrl").
 
 -record(a_rec, {num :: integer()}).
+
+flip(F, A, B) -> F(A, B).
 
 listtest(X) ->
     [A, _ | C] = X,

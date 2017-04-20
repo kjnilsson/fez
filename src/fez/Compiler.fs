@@ -118,8 +118,8 @@ module Compiler =
 
     let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
         pgs
-        |> List.fold (List.append) []
-        |> List.map (fun x -> x.FullName, x.FullType.TypeDefinition)
+        |> List.fold List.append []
+        |> List.map (fun x -> x.FullName)
 
     let altExpr = cerl.altExpr
 
@@ -244,9 +244,12 @@ module Compiler =
             let mul = litAtom x |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang mul args, nm
-        | name, _ -> //apply
-            let func = litAtom name |> constr
+        | name, _ -> //apply to named function (local)
+            // TODO this probably wont always work
+            let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
+            let numArgs = List.length args
+            let func = cerl.Function (cerl.Atom name, numArgs) |> cerl.Fun |> constr
             apply func args, nm
         | x, _ ->  failwithf "not implemented %A" x
 
@@ -450,27 +453,32 @@ module Compiler =
                  let hd = litAtom "tl" |> constr
                  let e, nm = processExpr nm value
                  modCall erlang hd [e], nm
+            | B.Application (target,  uh, args) ->
+                let f, nm = processExpr nm target
+                let args, nm = foldNames nm processExpr args
+                apply f args, nm
             | x -> failwithf "not implemented %A" x
         constr res, nmOut
 
 
     let processModDecl decl =
-      match decl with
-      | MemberOrFunctionOrValue(memb, Parameters ps, expr)
-          when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
-              let nm = Map.empty
-              let args, nm = foldNames nm (safeVar true) (List.map fst ps)
-              let e, nm = processExpr nm expr
-              let l = lambda args e
-              //TODO make function name safe
-              let f = mkFunction memb.LogicalName (List.length ps)
-              Some (f, funDef f l)
-      | Entity(ent, declList) when ent.IsFSharpRecord ->
-          None
-      |  MemberOrFunctionOrValue(x, _, _) ->
-          (* printfn "cannot process %A" x.LogicalName *)
-          None
-      | x -> failwithf "cannot process %A" x
+        (* printfn "decl %A" decl *)
+        match decl with
+        | MemberOrFunctionOrValue(memb, Parameters ps, expr)
+            when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
+            let nm = Map.empty
+            let args, nm = foldNames nm (safeVar true) ps
+            let e, nm = processExpr nm expr
+            let l = lambda args e
+            //TODO make function name safe
+            let f = mkFunction memb.LogicalName (List.length ps)
+            Some (f, funDef f l)
+        | Entity(ent, declList) when ent.IsFSharpRecord ->
+            None
+        |  MemberOrFunctionOrValue(x, _, _) ->
+        (* printfn "cannot process %A" x.LogicalName *)
+            None
+        | x -> failwithf "cannot process %A" x
 
 
     let processDecl decl =
