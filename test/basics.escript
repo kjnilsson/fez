@@ -39,5 +39,12 @@ main([]) ->
     "hi2hi2" = basics:tuple_matching(2, "hi2"),
     "threethree" = basics:tuple_matching(3, "three"),
     "many" = basics:tuple_matching(4, "four"),
+
+    io:format("-testing basics:add ~n"),
+    3 = basics:add(1, 2),
+    % addFive returns a fun
+    6 = (basics:addFive())(1),
+    7 = basics:addSix(1),
+
     io:format("OK: basics~n"),
     ok.

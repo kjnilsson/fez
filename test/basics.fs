@@ -42,3 +42,8 @@ let tuple_matching t =
     | (2, s) -> s + s
     | (3, ("three" as s)) -> s + s
     | (_, _) -> "many"
+
+
+let add a b = a + b
+let addFive = add 5
+let addSix x = addFive x + 1

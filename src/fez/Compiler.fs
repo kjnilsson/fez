@@ -139,6 +139,13 @@ module Compiler =
         | _ ->
             mkName x 0, Map.add x 0 nameMap
 
+    let varExps name =
+        cerl.Constr (cerl.Var name) |> cerl.Exp
+
+    let uniqueName nm =
+        // TODO: append some random stuff to reduce the chance of name collisions
+        safeVar true nm "fez"
+
     let foldNames nm f xs =
         let xs, nm = List.fold (fun (xs, nm) x ->
                                     let x, nm = f nm x
@@ -453,10 +460,28 @@ module Compiler =
                  let hd = litAtom "tl" |> constr
                  let e, nm = processExpr nm value
                  modCall erlang hd [e], nm
-            | B.Application (target,  uh, args) ->
-                let f, nm = processExpr nm target
-                let args, nm = foldNames nm processExpr args
-                apply f args, nm
+            | B.Application (target, _types, args) ->
+                // if the target is not a plain value or a function we
+                // may not be able to process it inline and thus need to wrap it
+                // in a Let
+                match processExpr nm target with
+                | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _)) as t, nm ->
+                    // we're cool the target is just a var or fun - we can inline
+                    // TODO: literals?
+                    let args, nm = foldNames nm processExpr args
+                    apply t args, nm
+                | t, nm ->
+                    //the target is something more complex and needs to be
+                    //wrapped in a Let
+                    let name, nm = uniqueName nm
+                    let app, nm =
+                        let args, nm = foldNames nm processExpr args
+                        apply (varExps name) args |> constr, nm
+                    mkLet name t app, nm
+            | B.Lambda (p, expr) ->
+                let v, nm = safeVar true nm p.LogicalName
+                let body, nm = processExpr nm expr
+                cerl.Lambda ([v], body), nm
             | x -> failwithf "not implemented %A" x
         constr res, nmOut
 
