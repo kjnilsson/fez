@@ -262,3 +262,23 @@ let mergeGuards (a, b) =
                 else wrap a b
 
 let prt = Module.prt >> String.concat System.Environment.NewLine
+
+
+let op_ComposeRight =
+    FunDef
+      (Constr (Function (Atom "op_ComposeRight",2)),
+       (Constr
+         (Lambda
+            (["_f0"; "_g0"],
+             (Exp
+               (Constr
+                 (Lambda (["_x0"],
+                     (Exp
+                       (Constr
+                          (App
+                             (Exp (Constr (Var "_g0")),
+                              [Exp
+                                 (Constr
+                                    (App
+                                       (Exp (Constr (Var "_f0")),
+                                        [Exp (Constr (Var "_x0"))])))]))))))))))))

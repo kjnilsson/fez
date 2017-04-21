@@ -182,6 +182,7 @@ module Compiler =
         cerl.FunDef (cerl.Constr f, cerl.Constr expr)
 
     let erlang = litAtom "erlang" |> constr
+    let fez = litAtom "fez" |> constr
 
     let (|Intr2Erl|_|) =
         function
@@ -243,6 +244,7 @@ module Compiler =
 
     let rec mapCall nm (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exp * Map<string, int>) =
         match f.LogicalName, exprs with
+        //special case mapping + on a string to ++
         | Intr2Erl "+", ExprType "string" _ :: _ ->
             let stringAppend = litAtom "++" |> constr
             let args, nm = foldNames nm processExpr exprs
@@ -256,8 +258,9 @@ module Compiler =
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
             let numArgs = List.length args
-            let func = cerl.Function (cerl.Atom name, numArgs) |> cerl.Fun |> constr
-            apply func args, nm
+            let func = mkFunction name numArgs |> cerl.Fun |> constr
+            let app = apply func args
+            app,nm
         | x, _ ->  failwithf "not implemented %A" x
 
     // This function is a smell - there must be a better way
@@ -506,6 +509,16 @@ module Compiler =
         | x -> failwithf "cannot process %A" x
 
 
+    // built in simple operations that aren't available in erlang
+    // are inlined as private functions
+    // this makes translation easier
+    // bonus: apply may be faster than modcall
+    // TODO: only inline those that are actually used
+    let defaultFunDefs =
+        [
+            cerl.op_ComposeRight
+        ]
+
     let processDecl decl =
       match decl with
       | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
@@ -513,7 +526,8 @@ module Compiler =
               implFileDecls
               |> List.choose processModDecl
               |> List.unzip
-          cerl.Module (cerl.Atom ent.LogicalName, funs, [], funDefs)
+          cerl.Module (cerl.Atom ent.LogicalName, funs, [],
+                       funDefs @ defaultFunDefs)
       | InitAction(expr) ->
           failwithf "Init Action not supported %A" expr
       | Entity(ent, declList) ->
