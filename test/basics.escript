@@ -4,6 +4,7 @@
 
 main([]) ->
     true = code:add_pathz(filename:dirname(escript:script_name())),
+    true = code:add_pathz(filename:dirname(filename:dirname(escript:script_name())) ++ "/ebin"),
     io:format("-testing basics:flip~n"),
     "therehi" = basics:flip(fun erlang:'++'/2, "hi", "there"),
 

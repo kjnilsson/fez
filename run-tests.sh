@@ -1,4 +1,4 @@
 set -e
 ./fezc ./test/basics.fs
-erlc ./test/*.erl
+erlc -o ./ebin ./src/*.erl
 escript test/basics.escript
