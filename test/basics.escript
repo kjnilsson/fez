@@ -48,5 +48,12 @@ main([]) ->
     9 = (basics:addSeven())(2),
     10 = (basics:addEight())(2),
 
+    io:format("-testing basics:(str|list)Len ~n"),
+    0 = basics:strLen(""),
+    4 = basics:strLen("asdf"),
+    0 = basics:listLen([]),
+    4 = basics:strLen([1,2,3,4]),
+
+
     io:format("OK: basics~n"),
     ok.

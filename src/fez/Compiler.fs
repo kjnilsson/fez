@@ -184,8 +184,8 @@ module Compiler =
     let erlang = litAtom "erlang" |> constr
     let fez = litAtom "fez" |> constr
 
-    let (|Intr2Erl|_|) =
-        function
+    let (|Intr2Erl|_|) (f: FSharpMemberOrFunctionOrValue) =
+        match f.LogicalName with
         | "op_Multiply" -> Some "*"
         | "op_Addition" -> Some "+"
         | "op_Subtraction" -> Some "-"
@@ -218,6 +218,8 @@ module Compiler =
         | :? int as i -> litInt i
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
+        | null -> //unit?
+            litAtom "fez_unit" //Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
 
     let groupPatterns groupBy patterns =
@@ -242,18 +244,38 @@ module Compiler =
         if e.Type.TypeDefinition.LogicalName = ts then Some e
         else None
 
-    let rec mapCall nm (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exp * Map<string, int>) =
-        match f.LogicalName, exprs with
+    let (|IsMemberOn|_|) t (f: FSharpMemberOrFunctionOrValue) =
+        if f.IsMember && f.EnclosingEntity.LogicalName = t then
+            Some f
+        else None
+
+    let (|LogicalName|_|) t (f: FSharpMemberOrFunctionOrValue) =
+        if f.LogicalName = t then Some ()
+        else None
+
+    let rec mapCall nm callee (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exp * Map<string, int>) =
+
+        match callee, f, exprs with
         //special case mapping + on a string to ++
-        | Intr2Erl "+", ExprType "string" _ :: _ ->
+        | _, Intr2Erl "+", ExprType "string" _ :: _ ->
             let stringAppend = litAtom "++" |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang stringAppend args, nm
-        | Intr2Erl x, _ ->
+        | _, Intr2Erl x, _ ->
             let mul = litAtom x |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang mul args, nm
-        | name, _ -> //apply to named function (local)
+        | Some callee, LogicalName "get_Length"
+                       & (IsMemberOn "String" _ | IsMemberOn "List`1" _), _ ->
+            let length = litAtom "length" |> constr
+            let arg, nm = processExpr nm callee
+            // string length wont have any args
+            // List.length has one arg - unit - ignoring it here
+            (* let args, nm = foldNames nm processExpr exprs *)
+            modCall erlang length [arg], nm
+        | callee, _, e -> //apply to named function (local)
+            let name = f.LogicalName
+            (* printfn "mapCall %A %A %A %A" callee f.IsMember f.EnclosingEntity.LogicalName f.FullType *)
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
@@ -261,7 +283,7 @@ module Compiler =
             let func = mkFunction name numArgs |> cerl.Fun |> constr
             let app = apply func args
             app,nm
-        | x, _ ->  failwithf "not implemented %A" x
+        | _, x, _ ->  failwithf "not implemented %A" x
 
     // This function is a smell - there must be a better way
     and extractCaseExpr nm e =
@@ -351,8 +373,9 @@ module Compiler =
     and processExpr nm (expr : FSharpExpr) : (cerl.Exps * Map<string, int>) =
         let res, nmOut =
             match expr with
-            | B.Call (_expr, f, _, _typeSig, expressions) ->
-                mapCall nm f expressions
+            | B.Call (callee, f, _, _typeSig, expressions) ->
+                (* printfn "Call expr %A %A %A" expr f expressions *)
+                mapCall nm callee f expressions
             | B.Value v ->
                 let v', nm = safeVar false nm v.LogicalName
                 cerl.Var v', nm
@@ -530,7 +553,7 @@ module Compiler =
           cerl.Module (cerl.Atom ent.LogicalName, funs, [],
                        funDefs @ defaultFunDefs)
       | InitAction(expr) ->
-          failwithf "Init Action not supported %A" expr
+          failwithf "Module values (InitActions) are not supported as there is no equivalent in erlang.\r\nMake it a function instead.\r\n%A" expr
       | Entity(ent, declList) ->
           failwithf "cannot process record %+A" ent.TryGetMembersFunctionsAndValues
       | x -> failwithf "cannot process %+A" x
