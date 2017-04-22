@@ -56,6 +56,11 @@ main([]) ->
     0 = basics:listLen([]),
     4 = basics:strLen([1,2,3,4]),
 
+    io:format("-testing basics:*ListModule ~n"),
+    [2,3,4] = wip:addOneToAll([1,2,3]),
+    6 = wip:foldTest([1,2,3]),
+    6 = wip:foldTest2([1,2,3]),
+    [1,2,3] = wip:sort([3,1,2]),
 
     io:format("OK: basics~n"),
     ok.

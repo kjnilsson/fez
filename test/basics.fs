@@ -53,3 +53,10 @@ let addEight = add 3 << addFive
 let strLen (s: string) = s.Length
 let strLen2 s = String.length s
 let listLen (s: List<_>) = s.Length
+
+let addOneToAll l = List.map (fun x -> add x 1) l
+
+let foldTest l = List.fold (fun s n -> s + n) 0 l
+let foldTest2 l = List.fold add 0 l
+
+let sort l = List.sort l

@@ -240,6 +240,17 @@ module Compiler =
                                             ctx)
                            s rest)
 
+    // flatten nested single parameter lambdas
+    // this will reverse the arguments but that is typically ok for
+    // a first class fun in erlang
+    let rec flattenLambda parms l =
+        match parms, l with
+        | _, cerl.Exp (cerl.Constr (cerl.Lambda ([v] , exps))) ->
+            flattenLambda (v :: parms) exps
+        | [], _ -> l
+        | _, _ ->
+            cerl.Exp (cerl.Constr (cerl.Lambda (parms, l)))
+
     let (|ExprType|_|) ts (e: FSharpExpr) =
         if e.Type.TypeDefinition.LogicalName = ts then Some e
         else None
@@ -281,9 +292,17 @@ module Compiler =
             let length = litAtom "length" |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang length args, nm
+        | None, IsModuleMemberOn "ListModule" f, _ -> // FSharpCore module call
+            let name = f.LogicalName
+            let m = litAtom "ListModule" |> constr
+            let f = litAtom name |> constr
+            let args, nm = foldNames nm processExpr exprs
+            let args = args |> List.map (flattenLambda [])
+            (* printfn "args %A" args *)
+            modCall m f args, nm
         | callee, _, e -> //apply to named function (local)
             let name = f.LogicalName
-            (* printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.LogicalName f.FullType *)
+            (* printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.FullName f.LogicalEnclosingEntity *)
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
