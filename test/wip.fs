@@ -6,5 +6,6 @@ module wip
 (* let addSeven = add 2 >> addFive *)
 (* let addSeven2 = add 2 << addFive *)
 
-let strLen (s: string) = s.Length
-let listLen (s: List<_>) = s.Length
+let strLen = String.length
+(* let listLen (s: List<_>) = s.Length *)
+

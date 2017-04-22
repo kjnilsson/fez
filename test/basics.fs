@@ -51,4 +51,5 @@ let addSeven = add 2 >> addFive
 let addEight = add 3 << addFive
 
 let strLen (s: string) = s.Length
+let strLen2 s = String.length s
 let listLen (s: List<_>) = s.Length

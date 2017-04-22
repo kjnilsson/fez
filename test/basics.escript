@@ -51,6 +51,8 @@ main([]) ->
     io:format("-testing basics:(str|list)Len ~n"),
     0 = basics:strLen(""),
     4 = basics:strLen("asdf"),
+    0 = basics:strLen2(""),
+    4 = basics:strLen2("asdf"),
     0 = basics:listLen([]),
     4 = basics:strLen([1,2,3,4]),
 

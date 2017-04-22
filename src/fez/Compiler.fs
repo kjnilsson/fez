@@ -249,6 +249,11 @@ module Compiler =
             Some f
         else None
 
+    let (|IsModuleMemberOn|_|) t (f: FSharpMemberOrFunctionOrValue) =
+        if f.IsModuleValueOrMember && f.EnclosingEntity.LogicalName = t then
+            Some f
+        else None
+
     let (|LogicalName|_|) t (f: FSharpMemberOrFunctionOrValue) =
         if f.LogicalName = t then Some ()
         else None
@@ -271,11 +276,14 @@ module Compiler =
             let arg, nm = processExpr nm callee
             // string length wont have any args
             // List.length has one arg - unit - ignoring it here
-            (* let args, nm = foldNames nm processExpr exprs *)
             modCall erlang length [arg], nm
+        | None, LogicalName "length" & IsModuleMemberOn "StringModule" _, _ ->
+            let length = litAtom "length" |> constr
+            let args, nm = foldNames nm processExpr exprs
+            modCall erlang length args, nm
         | callee, _, e -> //apply to named function (local)
             let name = f.LogicalName
-            (* printfn "mapCall %A %A %A %A" callee f.IsMember f.EnclosingEntity.LogicalName f.FullType *)
+            (* printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.LogicalName f.FullType *)
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
