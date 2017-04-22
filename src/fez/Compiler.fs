@@ -517,6 +517,7 @@ module Compiler =
     let defaultFunDefs =
         [
             cerl.op_ComposeRight
+            cerl.op_ComposeLeft
         ]
 
     let processDecl decl =

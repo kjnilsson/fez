@@ -282,3 +282,21 @@ let op_ComposeRight =
                                     (App
                                        (Exp (Constr (Var "_f0")),
                                         [Exp (Constr (Var "_x0"))])))]))))))))))))
+let op_ComposeLeft =
+    FunDef
+      (Constr (Function (Atom "op_ComposeLeft",2)),
+       (Constr
+         (Lambda
+            (["_g0"; "_f0"],
+             (Exp
+               (Constr
+                 (Lambda (["_x0"],
+                     (Exp
+                       (Constr
+                          (App
+                             (Exp (Constr (Var "_g0")),
+                              [Exp
+                                 (Constr
+                                    (App
+                                       (Exp (Constr (Var "_f0")),
+                                        [Exp (Constr (Var "_x0"))])))]))))))))))))

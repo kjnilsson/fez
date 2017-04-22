@@ -46,6 +46,7 @@ main([]) ->
     6 = (basics:addFive())(1),
     7 = basics:addSix(1),
     9 = (basics:addSeven())(2),
+    10 = (basics:addEight())(2),
 
     io:format("OK: basics~n"),
     ok.
