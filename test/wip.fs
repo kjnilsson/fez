@@ -1,32 +1,41 @@
 module wip
 open fez.core
 
-(* let add a b = a + b *)
-(* let addFive = add 5 *)
-(* let addSix x = addFive x + 1 *)
-(* let addSeven = add 2 >> addFive *)
-(* let addSeven2 = add 2 << addFive *)
+ (* if case_test *)
+ (* if head = const(2) -> D:0 *)
+ (* then *)
+ (*     if head = const(3) -> *)
+ (*         if case_test tail  -> D:1 (values: tail:head, tail:tail) *)
+ (*         else D:2 *)
+ (*     else D:2 *)
 
-(* let strLen = String.length *)
-(* let listLen (s: List<_>) = s.Length *)
-
-(* let intToString x = printf "x is %i %b" x true *)
-
-(* let add a b = a + b *)
-
-(* let addOneToAll l = List.map (fun x -> add x 1) l *)
-
-(* let foldTest l = List.fold (fun s n -> s + n) 0 l *)
-(* let foldTest2 l = List.fold add 0 l *)
-
-(* let sort l = List.sort l *)
 
 (* let recTest () = *)
 (*     match receive<string>() with *)
 (*     | "hi" as m-> Some m *)
 (*     | _ -> None *)
 
-let listMap l =
-    match List.map (fun x -> x +1) l with
-    | 2 :: _ -> Some l
-    | _ -> None
+type Result =
+    | JustOk
+    | NotOk
+    | Ok of int
+    | Error of int * string
+
+let makeRestlt i =
+    if i > 100 then
+        Ok i
+    elif i < 0 then
+        NotOk
+    else JustOk
+
+let handleResult r =
+    match r with
+    | JustOk -> 0
+    | NotOk -> 0
+    | Ok i -> i
+    | Error (i, s) -> i
+(* let listMap l = *)
+(*     match List.map (fun x -> x +1) l with *)
+(*     | 2 :: _ as l -> Some l *)
+(*     | 3 :: f :: t -> Some t *)
+(*     | _ -> None *)

@@ -304,7 +304,7 @@ module Compiler =
             modCall m f args, nm
         | callee, _, e -> //apply to named function (local)
             let name = f.LogicalName
-            printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.FullName f.LogicalEnclosingEntity
+            (* printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.FullName f.LogicalEnclosingEntity *)
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
@@ -380,6 +380,15 @@ module Compiler =
             cerl.PList (cerl.LL ([cerl.PVar "_"], cerl.PVar "_")), cerl.defaultGuard, nm
         | B.UnionCaseTest (e, IsFSharpList t, IsCase "Empty" c) ->
             cerl.PLit cerl.LNil, cerl.defaultGuard, nm
+        // any other DUs turn them into {'CaseName\, _, _, _} patterns
+        | B.UnionCaseTest (e, t, c) ->
+            let litAtomP name =
+                cerl.PLit (cerl.LAtom (cerl.Atom name))
+            let unionCases = t.TypeDefinition.UnionCases |> Seq.toList
+            let unionTagPat = cerl.PLit (cerl.LAtom (cerl.Atom c.CompiledName))
+            let caseFieldPats = c.UnionCaseFields |> Seq.toList
+                                |> List.map (fun _ -> cerl.PVar "_")
+            cerl.PTuple (unionTagPat::  caseFieldPats), cerl.defaultGuard, nm
         | expr ->
             failwithf "processPat not implemented %A" expr
 
@@ -433,18 +442,16 @@ module Compiler =
                 (* printfn "if %A\r\nthen %A\r\nelse %A" fi neht esle *)
                 let caseExpr, nm = extractCaseExpr nm fi
                 match processITEs nm ite |> groupPatterns fst |> mergePatterns with
-                | [thenExpr, (ifPat, ifGuard, _)
-                   elseExpr, (elsePat, elseGuard, _)]  ->
-                        let thenExps, _ = processExpr nm thenExpr
-                        let elseExps, _ = processExpr nm elseExpr
-                        let alts = [altExpr (cerl.Pat ifPat, ifGuard, thenExps)
-                                    altExpr (cerl.Pat elsePat, elseGuard, elseExps)]
-
-                        cerl.Case (caseExpr, alts), nm
-                | x -> failwithf "unexpected if then else result %A" x
+                | ites ->
+                    let alts =
+                        ites
+                        |> List.map (fun (expr, (pat, guard, nm)) ->
+                            let exps, _ = processExpr nm expr
+                            altExpr (cerl.Pat pat, guard, exps))
+                    cerl.Case(caseExpr, alts), nm
 
             | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
-                (* printfn "ite %A \r\nl %A" ite  l *)
+                (* printfn "ite %A \r\nbranches %A" ite  branches *)
                 // TODO: it wont always be vars
                 let caseExpr, nm = extractCaseExpr nm fi
                 // ordering matters!!
@@ -515,6 +522,16 @@ module Compiler =
                  let hd = litAtom "tl" |> constr
                  let e, nm = processExpr nm value
                  modCall erlang hd [e], nm
+            | B.UnionCaseGet(e, t, c, f) ->
+                (* printfn "v %A t %A c %A f %A" e t c.UnionCaseFields f *)
+                // turn these into element/2 calls
+                let idx =
+                    c.UnionCaseFields
+                    |> Seq.findIndex ((=) f)
+                let element = litAtom "element" |> constr
+                let e, nm = processExpr nm e
+                let idx = idx+2 |> cerl.LInt
+                modCall erlang element [cerl.Lit idx |> constr; e], nm
             | B.Application (target, _types, args) ->
                 // if the target is not a plain value or a function we
                 // may not be able to process it inline and thus need to wrap it
@@ -554,6 +571,8 @@ module Compiler =
             let f = mkFunction memb.LogicalName (List.length ps)
             Some (f, funDef f l)
         | Entity(ent, declList) when ent.IsFSharpRecord ->
+            None
+        | Entity(ent, declList) when ent.IsFSharpUnion ->
             None
         |  MemberOrFunctionOrValue(x, _, _) ->
         (* printfn "cannot process %A" x.LogicalName *)

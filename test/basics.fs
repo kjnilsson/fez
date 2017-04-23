@@ -59,3 +59,23 @@ let foldTest l = List.fold (fun s n -> s + n) 0 l
 let foldTest2 l = List.fold add 0 l
 
 let sort l = List.sort l
+
+type TestDU =
+    | JustOk
+    | NotOk
+    | Ok of int
+    | Error of int * string
+
+let makeDU i =
+    if i > 100 then
+        Ok i
+    elif i < 0 then
+        NotOk
+    else JustOk
+
+let handleTestDU r =
+    match r with
+    | JustOk -> 0
+    | NotOk -> 0
+    | Ok i -> i
+    | Error (i, s) -> i
