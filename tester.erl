@@ -3,7 +3,8 @@
          blah/1, tuple/1, fact_fun/0, guards/1, maybe_head/1,
          listtest/1,
          strange_list/1,
-         flip/3
+         flip/3,
+         rec_test/0
         ]).
 
 -include_lib("test.hrl").
@@ -59,3 +60,8 @@ fact_fun() ->
 guards(X) when is_integer(X) andalso X > 10 andalso X < 20 -> X-1;
 guards(X) when is_integer(X) andalso (X > 10 orelse X == 5) -> X+1;
 guards(X) -> X.
+
+rec_test() ->
+    receive
+        X -> X
+    end.

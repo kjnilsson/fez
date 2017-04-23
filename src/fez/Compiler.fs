@@ -27,6 +27,7 @@ module Util =
     (* let localPath = Path.GetDirectoryName(typeof<TypeInThisAssembly>.GetTypeInfo().Assembly.Location) *)
     let compilerArgs () =
         let fsharpCoreLib = typeof<Microsoft.FSharp.Core.MeasureAttribute>.GetTypeInfo().Assembly.Location
+        let fezCoreLib = typeof<fez.core.Pid>.GetTypeInfo().Assembly.Location
         let systemCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(systemCoreLib)
         let sysLib name = Path.Combine(sysPath, name + ".dll")
@@ -59,6 +60,7 @@ module Util =
             "-r:" + resolve "System.Threading.Tasks"
             "-r:" + resolve "System.Text.RegularExpressions"
             "-r:" + fsharpCoreLib
+            "-r:" + fezCoreLib
         |]
 
     let projectOptions (checker: FSharpChecker) file =
@@ -302,7 +304,7 @@ module Compiler =
             modCall m f args, nm
         | callee, _, e -> //apply to named function (local)
             let name = f.LogicalName
-            (* printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.FullName f.LogicalEnclosingEntity *)
+            printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.FullName f.LogicalEnclosingEntity
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
