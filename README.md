@@ -19,29 +19,36 @@ for some discussions on potential implementation approaches.
 
 ### Getting started
 
-Currently the scripts are only unix compatible but should be easy to translate.
+Currently the scripts are only unix compatible but should be easy to translate
+to windows if you're such inclined.
+
+#### Requirements
+
+* [.NET core](https://dotnet.github.io/)
+* erlang 19+
+
 
 ```
-dotnet restore src/fez/fez.fsproj
-dotnet restore src/fez.core/fez.core.fsproj
-dotnet restore test/test.fsproj
+./build.sh
 
-./run-tests.sh
-
-```
-or
-
-```
-dotnet build src/fez/fez/fsproj
 ```
 
 after this you can:
+
 
 ```
 ./fezc <file.fs>
 ```
 
 to try to compile fsharp modules to core erlang -> beam.
+
+
+To run the tests:
+
+```
+./run-tests.sh
+
+```
 
 
 ### How can I help?
