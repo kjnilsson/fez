@@ -12,28 +12,42 @@ open fez.core
 
 (* let recTest () = *)
 (*     match receive<string>() with *)
-(*     | "hi" as m-> Some m *)
+(*     | "hi" as m-> Some m :b cerl*)
 (*     | _ -> None *)
 
-type Result =
-    | JustOk
-    | NotOk
-    | Ok of int
-    | Error of int * string
+type Maybe =
+    | Ok of string
+    | Err
 
-let makeRestlt i =
-    if i > 100 then
-        Ok i
-    elif i < 0 then
-        NotOk
-    else JustOk
+let isErr =
+    function
+    | Ok "error" -> "ok_err"
+    | Ok msg -> msg
+    | Err -> "yes"
 
-let handleResult r =
-    match r with
-    | JustOk -> 0
-    | NotOk -> 0
-    | Ok i -> i
-    | Error (i, s) -> i
+let try_match_a_list l =
+    match l with
+    | 1 :: _ :: t -> Some t
+    | _ -> None
+(* type Result = *)
+(*     | JustOk *)
+(*     | NotOk *)
+(*     | Ok of int *)
+(*     | Error of int * string *)
+
+(* let makeRestlt i = *)
+(*     if i > 100 then *)
+(*         Ok i *)
+(*     elif i < 0 then *)
+(*         NotOk *)
+(*     else JustOk *)
+
+(* let handleResult r = *)
+(*     match r with *)
+(*     | JustOk -> 0 *)
+(*     | NotOk -> 0 *)
+(*     | Ok i -> i *)
+(*     | Error (i, s) -> i *)
 (* let listMap l = *)
 (*     match List.map (fun x -> x +1) l with *)
 (*     | 2 :: _ as l -> Some l *)
