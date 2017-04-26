@@ -13,6 +13,12 @@ let try_match_a_list l =
     | 1 :: _ :: h :: t when h > 2 -> Some h
     | _ -> None
 
+let fixed_len_list l =
+    match l with
+    | [1;_] -> Some 1
+    | [99;_;97;x] -> Some x
+    | _ -> None
+
 type person = {name: string; age: int}
 
 let make_person name age =
@@ -27,7 +33,6 @@ let rec sum n =
     match n with
     | 0 -> 0
     | n -> sum (n-1) + n
-
 let isOneToFour x =
     match x with
     | x when x < 1 || x > 4 ->
@@ -79,3 +84,4 @@ let handleTestDU r =
     | NotOk -> 0
     | Ok i -> i
     | Error (i, s) -> i
+

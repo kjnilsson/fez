@@ -16,6 +16,10 @@ main([]) ->
     {'Some', 3} = basics:try_match_a_list([1, 2, 3, 4, 5]),
     {'None'} = basics:try_match_a_list([1]),
 
+    io:format("-testing basics:fixed_len_list~n"),
+    {'Some', 1} = basics:fixed_len_list([1, 2]),
+    {'Some', 4} = basics:fixed_len_list([99, 101, 97, 4]),
+    {'None'} = basics:fixed_len_list([1, 2, 1]),
 
     io:format("-testing basics records~n"),
     {person, "karl", 39} = P = basics:make_person("karl", 39),

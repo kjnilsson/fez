@@ -107,6 +107,9 @@ module Compiler =
             Some caseName
         else None
 
+    let (|CaseName|) (c : FSharpUnionCase) =
+        c.CompiledName |> cerl.Atom
+
     let (|IsField|_|) fieldName (c : FSharpField) =
         if c.Name = fieldName then
             Some fieldName
@@ -184,6 +187,8 @@ module Compiler =
         cerl.FunDef (cerl.Constr f, cerl.Constr expr)
 
     let erlang = litAtom "erlang" |> constr
+    let notEquals = litAtom "/=" |> constr
+    let equals = litAtom "=:=" |> constr
     let fez = litAtom "fez" |> constr
 
     let (|Intr2Erl|_|) (f: FSharpMemberOrFunctionOrValue) =
@@ -193,6 +198,7 @@ module Compiler =
         | "op_Subtraction" -> Some "-"
         | "op_LessThan" -> Some "<"
         | "op_GreaterThan" -> Some ">"
+        | "op_Equality" -> Some "=:="
         | _ -> None
 
     let castLiteral (o: obj) =
@@ -280,9 +286,9 @@ module Compiler =
             let args, nm = foldNames nm processExpr exprs
             modCall erlang stringAppend args, nm
         | _, Intr2Erl x, _ ->
-            let mul = litAtom x |> constr
+            let op = litAtom x |> constr
             let args, nm = foldNames nm processExpr exprs
-            modCall erlang mul args, nm
+            modCall erlang op args, nm
         | Some callee, LogicalName "get_Length"
                        & (IsMemberOn "String" _ | IsMemberOn "List`1" _), _ ->
             let length = litAtom "length" |> constr
@@ -433,10 +439,61 @@ module Compiler =
               yield e, (cerl.PVar "_", cerl.defaultGuard, nm)
           | x -> failwithf "processITE not impl %A" x ]
 
+    and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>)  expr =
+        let boolPat tf = (cerl.Pat (cerl.PLit (cerl.LAtom (cerl.Atom tf))))
+        match expr with
+        | B.IfThenElse(fi, neht, esle) ->
+            let ifExps, nm = processExpr nm fi
+            let thenExpr, nm = processDT nm expsLookup neht
+            let elseExpr, nm = processDT nm expsLookup esle
+            let a1 = altExpr (boolPat "true", cerl.defaultGuard, constr thenExpr)
+            let a2 = altExpr (boolPat "false", cerl.defaultGuard, constr elseExpr)
+            cerl.Case(ifExps, [a1;a2]), nm
+        | B.DecisionTreeSuccess(i, valueExprs) ->
+            let mfvs, expr = expsLookup.[i]
+            let mfvs = mfvs |> List.map (fun v -> v.CompiledName)
+            // process expression and wrap in multi let
+            let assignments, mn =
+                List.zip mfvs valueExprs
+                |> List.fold (fun (agg, nm) (v, e) ->
+                                let v, nm = safeVar false nm v
+                                let e, nm = processExpr nm e
+                                ((v, e) :: agg), nm) ([], nm)
+
+            let e, _ = processExpr nm expr
+
+            let vls = List.map fst assignments
+            let es = List.choose (fun (_, e) ->
+                                    match e with
+                                    | cerl.Exp ae -> Some ae
+                                    | _ -> None) assignments
+            cerl.Let ((vls, cerl.Exps (cerl.Constr es)), e), nm
+        | e -> failwithf "processDT unexpected %A" e
+
 
     and processExpr nm (expr : FSharpExpr) : (cerl.Exps * Map<string, int>) =
+        let element nm idx e =
+            let el = litAtom "element" |> constr
+            let e, nm = processExpr nm e
+            let idx = cerl.LInt idx
+            modCall erlang el [cerl.Lit idx |> constr; e], nm
+
         let res, nmOut =
             match expr with
+            | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
+                let a1, nm = processExpr nm e
+                let a2 = cerl.Lit (cerl.LNil) |> constr
+                modCall erlang notEquals [a1; a2], nm
+            | B.UnionCaseTest (e, IsFSharpList t, IsCase "Empty" c) ->
+                let a1, nm = processExpr nm e
+                let a2 = cerl.Lit (cerl.LNil) |> constr
+                modCall erlang equals [a1; a2], nm
+                //Cons cell without any name bindings
+            | B.UnionCaseTest (e, t, CaseName name) ->
+                let left, nm = element nm 1 e
+                let right = cerl.Lit (cerl.LAtom name) |> constr
+                modCall erlang equals [constr left; right], nm
+        // any other DUs turn them into {'CaseName\, _, _, _} patterns
             | B.Call (callee, f, _, _typeSig, expressions) ->
                 (* printfn "Call expr %A %A %A" expr f expressions *)
                 mapCall nm callee f expressions
@@ -449,10 +506,8 @@ module Compiler =
                 let args, nm = foldNames nm processExpr args
                 cerl.Tuple args, nm
             | B.TupleGet (fsType, idx, e) ->
-                let element = litAtom "element" |> constr
-                let e, nm = processExpr nm e
-                let idx = idx+1 |> cerl.LInt
-                modCall erlang element [cerl.Lit idx |> constr; e], nm
+                let idx = idx+1
+                element nm idx e
             | B.NewUnionCase(fsType, fsUnionCase, argExprs) as e ->
                 let unionTag = fsUnionCase.CompiledName |> litAtom |> constr
                 let args, nm = foldNames nm processExpr argExprs
@@ -477,56 +532,59 @@ module Compiler =
                             let exps, _ = processExpr nm expr
                             altExpr (cerl.Pat pat, guard, exps))
                     cerl.Case(caseExpr, alts), nm
-
             | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
-                (* printfn "ite %A \r\nbranches %A" ite  branches *)
-                // TODO: it wont always be vars
-                let caseExpr, nm = extractCaseExpr nm fi
-                // ordering matters!!
-                let group = function | B.DecisionTreeSuccess(i, _) -> i | x -> hash x
-                let ites =
-                    let rawItes = processITEs nm ite
-                    let lookup = rawItes
-                                 |> List.map (fun (expr, _pat) -> group expr, expr)
-                                 |> List.fold (fun s (i, a) -> Map.add i a s) Map.empty
-                    rawItes
-                    |> groupPatterns (fun (i, ps) -> group i)
-                    |> mergePatterns
-                    |> List.map (fun (i, ps) -> lookup.[i], ps)
-                    |> List.map (fun (k, v) ->
-                                    match k with
-                                    | B.DecisionTreeSuccess(idx, targetValueExprs) ->
-                                        idx, (targetValueExprs, v)
-                                    | x -> failwithf "unexpected %A" x)
+                (* printfn "ite %A" ite *)
+                let l = List.mapi (fun i x -> i, x) branches |> Map
+                processDT nm l ite
+            (* | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree -> *)
+            (*     printfn "ite %A \r\nbranches %A" ite  branches *)
+            (*     // TODO: it wont always be vars *)
+            (*     let caseExpr, nm = extractCaseExpr nm fi *)
+            (*     // ordering matters!! *)
+            (*     let group = function | B.DecisionTreeSuccess(i, _) -> i | x -> hash x *)
+            (*     let ites = *)
+            (*         let rawItes = processITEs nm ite *)
+            (*         let lookup = rawItes *)
+            (*                      |> List.map (fun (expr, _pat) -> group expr, expr) *)
+            (*                      |> List.fold (fun s (i, a) -> Map.add i a s) Map.empty *)
+            (*         rawItes *)
+            (*         |> groupPatterns (fun (i, ps) -> group i) *)
+            (*         |> mergePatterns *)
+            (*         |> List.map (fun (i, ps) -> lookup.[i], ps) *)
+            (*         |> List.map (fun (k, v) -> *)
+            (*                         match k with *)
+            (*                         | B.DecisionTreeSuccess(idx, targetValueExprs) -> *)
+            (*                             idx, (targetValueExprs, v) *)
+            (*                         | x -> failwithf "unexpected %A" x) *)
 
-                let branchMap = branches |> List.mapi (fun i v -> i, v) |> Map
-                (* printfn "lmap %A" lmap *)
-                (* printfn "ites %A" ites *)
-                let alts : List<cerl.Ann<cerl.Alt>> =
-                    ites
-                    |> List.map (fun (i, (valueExprs, (pat, grd, nm))) ->
-                            //merge mfvs with valueExprs + pat
-                            let mfvs, e = branchMap.[i]
-                            let mfvs = mfvs |> List.map (fun v -> v.CompiledName)
-                            let assignments, mn =
-                                List.zip mfvs valueExprs
-                                |> List.fold (fun (agg, nm) (v, e) ->
-                                    let v, nm = safeVar false nm v
-                                    let e, nm = processExpr nm e
-                                    ((v, e) :: agg), nm) ([], nm)
+            (*     let branchMap = branches |> List.mapi (fun i v -> i, v) |> Map *)
+            (*     (1* printfn "lmap %A" lmap *1) *)
+            (*     printfn "ites %A" ites *)
+            (*     let alts : List<cerl.Ann<cerl.Alt>> = *)
+            (*         ites *)
+            (*         |> List.map (fun (i, (valueExprs, (pat, grd, nm))) -> *)
+            (*                 //merge mfvs with valueExprs + pat *)
+            (*                 let mfvs, e = branchMap.[i] *)
+            (*                 let mfvs = mfvs |> List.map (fun v -> v.CompiledName) *)
+            (*                 let assignments, mn = *)
+            (*                     List.zip mfvs valueExprs *)
+            (*                     |> List.fold (fun (agg, nm) (v, e) -> *)
+            (*                         let v, nm = safeVar false nm v *)
+            (*                         let e, nm = processExpr nm e *)
+            (*                         ((v, e) :: agg), nm) ([], nm) *)
 
-                            let e, _ = processExpr nm e
-                            let vls = List.map fst assignments
-                            let es = List.choose (fun (_, e) ->
-                                            match e with
-                                            | cerl.Exp ae -> Some ae
-                                            | _ -> None) assignments
-                            let e =
-                                cerl.Let ((vls, cerl.Exps (cerl.Constr es)), e)
-                            // we can throw away nm now as have branched
-                            // TODO if e is a let it should be in pattern?
-                            altExpr (cerl.Pat pat, grd, e |> constr))
-                cerl.Case (caseExpr, alts), nm
+            (*                 let e, _ = processExpr nm e *)
+            (*                 let vls = List.map fst assignments *)
+            (*                 let es = List.choose (fun (_, e) -> *)
+            (*                                 match e with *)
+            (*                                 | cerl.Exp ae -> Some ae *)
+            (*                                 | _ -> None) assignments *)
+            (*                 let e = *)
+            (*                     cerl.Let ((vls, cerl.Exps (cerl.Constr es)), e) *)
+            (*                 // we can throw away nm now as have branched *)
+            (*                 // TODO if e is a let it should be in pattern? *)
+            (*                 altExpr (cerl.Pat pat, grd, e |> constr)) *)
+            (*     cerl.Case (caseExpr, alts), nm *)
             | B.FSharpFieldGet (Some e, t, fld) ->
                 // TODO when would the expr be None here
                 let tupleIndex =

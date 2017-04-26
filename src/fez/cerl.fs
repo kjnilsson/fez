@@ -168,9 +168,9 @@ and Exp =
                     match a with
                     | Constr a ->
                         let x = Alt.prt (i+4) a
-                        sprintf "%s%s\r\n" s x
+                        sprintf "%s%s" s x
                     | x -> failwithf "not imple %A" x) "" alts
-            sprintf "%scase %s of\r\n%send" indent caseExpr alts
+            sprintf "%scase %s of\r\n%s%send" indent caseExpr alts indent
          | Tuple vals ->
              List.map (Exps.prt 0) vals
              |> String.concat ","
@@ -235,6 +235,8 @@ let rec mergePat (a, b) =
         let tails = mergePat (tails, tails2)
         let heads = heads @ heads2
         PList (LL (heads, tails))
+    | PList (LL (heads, tails)), (PLit LNil as nil)->
+        PList (LL (heads, nil))
     | PTuple aps, PTuple bps ->
         List.zip aps bps
         |> List.map mergePat

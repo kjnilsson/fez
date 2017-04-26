@@ -15,19 +15,29 @@ open fez.core
 (*     | "hi" as m-> Some m :b cerl*)
 (*     | _ -> None *)
 
-type Maybe =
-    | Ok of string
-    | Err
+(* type Maybe = *)
+(*     | Ok of string *)
+(*     | Err *)
 
-let isErr =
-    function
-    | Ok "error" -> "ok_err"
-    | Ok msg -> msg
-    | Err -> "yes"
+(* let isErr = *)
+(*     function *)
+(*     | Ok "error" -> "ok_err" *)
+(*     | Ok msg -> msg *)
+(*     | Err -> "yes" *)
+
+(* let try_match_a_list l = *)
+(*     match l with *)
+(*     | [1;_]  -> Some 1 *)
+(*     | _ -> None *)
+(* let fixed_len_list l = *)
+(*     match l with *)
+(*     | [1;_] -> Some 1 *)
+(*     | [99;_;97;x] -> Some x *)
+(*     | _ -> None *)
 
 let try_match_a_list l =
     match l with
-    | 1 :: _ :: t -> Some t
+    | 1 :: _ :: h :: t when h > 2 -> Some h
     | _ -> None
 (* type Result = *)
 (*     | JustOk *)
