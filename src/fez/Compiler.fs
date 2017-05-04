@@ -107,6 +107,11 @@ module Compiler =
             Some caseName
         else None
 
+    let (|IsCtor|_|) (c : FSharpMemberOrFunctionOrValue) =
+        if c.CompiledName = ".ctor" then
+            Some c
+        else None
+
     let (|CaseName|) (c : FSharpUnionCase) =
         c.CompiledName |> cerl.Atom
 
@@ -127,6 +132,8 @@ module Compiler =
         |> List.map (fun x -> x.FullName)
 
     let altExpr = cerl.altExpr
+
+    let boolPat tf = (cerl.Pat (cerl.PLit (cerl.LAtom (cerl.Atom tf))))
 
     let mkName (name : string) num =
         if Char.IsUpper name.[0] then
@@ -186,6 +193,7 @@ module Compiler =
     let funDef f (expr) =
         cerl.FunDef (cerl.Constr f, cerl.Constr expr)
 
+    let annLAtom n = litAtom n |> constr
     let erlang = litAtom "erlang" |> constr
     let notEquals = litAtom "/=" |> constr
     let equals = litAtom "=:=" |> constr
@@ -277,29 +285,28 @@ module Compiler =
         if f.LogicalName = t then Some ()
         else None
 
-    let rec mapCall nm callee (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exp * Map<string, int>) =
-
+    let rec translateCall nm callee (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exps * Map<string, int>) =
         match callee, f, exprs with
         //special case mapping + on a string to ++
         | _, Intr2Erl "+", ExprType "string" _ :: _ ->
             let stringAppend = litAtom "++" |> constr
             let args, nm = foldNames nm processExpr exprs
-            modCall erlang stringAppend args, nm
+            modCall erlang stringAppend args |> constr, nm
         | _, Intr2Erl x, _ ->
             let op = litAtom x |> constr
             let args, nm = foldNames nm processExpr exprs
-            modCall erlang op args, nm
+            modCall erlang op args |> constr, nm
         | Some callee, LogicalName "get_Length"
                        & (IsMemberOn "String" _ | IsMemberOn "List`1" _), _ ->
             let length = litAtom "length" |> constr
             let arg, nm = processExpr nm callee
             // string length wont have any args
             // List.length has one arg - unit - ignoring it here
-            modCall erlang length [arg], nm
+            modCall erlang length [arg] |> constr, nm
         | None, LogicalName "length" & IsModuleMemberOn "StringModule" _, _ ->
             let length = litAtom "length" |> constr
             let args, nm = foldNames nm processExpr exprs
-            modCall erlang length args, nm
+            modCall erlang length args |> constr, nm
         | None, IsModuleMemberOn "ListModule" f, _ -> // FSharpCore module call
             let name = f.LogicalName
             let m = litAtom "ListModule" |> constr
@@ -307,140 +314,28 @@ module Compiler =
             let args, nm = foldNames nm processExpr exprs
             let args = args |> List.map (flattenLambda [])
             (* printfn "args %A" args *)
-            modCall m f args, nm
+            modCall m f args |> constr, nm
+        | None, LogicalName "printfn" _, [e] ->
+            let io = annLAtom "io"
+            let format = annLAtom "format"
+            let arg, nm = processExpr nm e
+            let argsVar, nm = safeVar true nm "fez"
+            let argsArg = cerl.Var argsVar |> constr
+            let call = modCall io format [arg; argsArg] |> constr
+            // inspect string to see how many actual args there are?
+            lambda [argsVar] call |> constr, nm
         | callee, _, e -> //apply to named function (local)
             let name = f.LogicalName
-            (* printfn "mapCall %A %A %A %A" callee f.LogicalName f.EnclosingEntity.FullName f.LogicalEnclosingEntity *)
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm = foldNames nm processExpr exprs
             let numArgs = List.length args
             let func = mkFunction name numArgs |> cerl.Fun |> constr
             let app = apply func args
-            app,nm
+            constr app,nm
         | _, x, _ ->  failwithf "not implemented %A" x
 
-    // This function is a smell - there must be a better way
-    and extractCaseExpr nm e =
-        // hacky way to get at the expr between 'match' and 'with'
-        match e with
-        | B.Call (_, _, _, _, [B.Value _ as e;_]) ->
-            processExpr nm e
-        | B.Let ((v, e), exps) ->
-            processExpr nm e
-        | B.Call (_, _, _, _, [B.TupleGet (_, _, (B.Value _ as e)); _]) ->
-            processExpr nm e
-        | B.UnionCaseTest (B.Value _ as e, _, _) ->
-            processExpr nm e
-        | x -> failwithf "extractCaseExpr not imp %A" x
-
-    and fallBackEq left right nm =
-        let leftExps, nm = processExpr nm left
-        let rightExps, nm = processExpr nm right
-        let eq = litAtom "=:=" |> constr
-        let guardExps = modCall erlang eq [leftExps; rightExps] |> constr
-        cerl.PVar "_", cerl.Guard guardExps, nm
-
-    and equalityPattern left right nm =
-        let (|CaseFields|) (c :FSharpUnionCase) =
-            c.UnionCaseFields |> Seq.map (fun f -> f.Name) |> Seq.toList
-        match left, right with
-        //list special case
-        | B.UnionCaseGet (target, IsFSharpList t, c, f), B.Const(Lit cLit, ct) ->
-            //for now fall back to using a guard for constant list patterns
-            //really we'd like to inline the const value into the right position
-            //in the list
-            fallBackEq left right nm
-            (* let v, nm = safeVar true nm v.LogicalName *)
-            (* cerl.PList(cerl.LL ([cerl.PLit cLit], cerl.PVar "_")), cerl.defaultGuard, nm *)
-            (* let guard, nm = processExpr nm expr *)
-            (* let pat = thisPat *)
-            (* pat, cerl.Guard guard, nm *)
-
-        | B.UnionCaseGet (target, t, (CaseFields cfs as c), f), B.Const(Lit cLit, ct) ->
-            let idx = List.findIndex ((=) f.Name) cfs
-            let fields =
-                cfs
-                |> List.mapi (fun i f -> if i = idx then cerl.PLit cLit else cerl.PVar "_")
-            cerl.PTuple ((cerl.PLit (cerl.LAtom (cerl.Atom c.Name))) :: fields), cerl.defaultGuard, nm
-        | B.Value (_), B.Const (Lit cVal, _) ->
-            cerl.PLit cVal, cerl.defaultGuard, nm
-        | B.TupleGet (tt, idx, v), B.Const (Lit cVal, _) ->
-            // create inline tuple match
-            let litPat = cerl.PLit cVal
-            let tupleSize = tt.GenericArguments |> Seq.length
-            let tpat = [for i in 0..tupleSize-1 do
-                            if i = idx then yield litPat
-                            else yield cerl.PVar "_" ]
-            cerl.PTuple tpat, cerl.Guard (litAtom "true" |> constr), nm
-        | _ ->
-            //fallback - process as guards
-            fallBackEq left right nm
-
-    and processPat nm (expr : FSharpExpr) : (cerl.Pat * cerl.Guard * Map<string, int>) =
-        match expr with
-        | B.Call (_expr, mfv, _, _fsType, [left; right])
-            when mfv.LogicalName = "op_Equality" ->
-            equalityPattern left right nm
-        | B.Let ((v, B.UnionCaseGet(_, IsFSharpList t, _, IsField "Tail" fld)), expr) ->
-            // list cons pattern on tail
-            (* printfn "processPat let tail expr %A" expr *)
-            let v, nm = safeVar true nm v.LogicalName
-            let thisPat = cerl.PList (cerl.LL ([], cerl.PVar v))
-            let guard, nm = processExpr nm expr
-            let pat = thisPat
-            pat, cerl.Guard guard, nm
-        | B.Let ((v, B.UnionCaseGet(_, IsFSharpList t, _, IsField "Head" fld)), expr) ->
-            // list cons pattern on head
-            let v, nm = safeVar true nm v.LogicalName
-            let thisPat = cerl.PList(cerl.LL ([cerl.PVar v], cerl.PVar "_"))
-            let guard, nm = processExpr nm expr
-            let pat = thisPat
-            pat, cerl.Guard guard, nm
-        | B.Let ((v, caseExps), expr) ->
-            let v, nm = safeVar true nm v.LogicalName
-            let guardExps, nm = processExpr nm expr
-            cerl.PVar v, cerl.Guard guardExps, nm
-        | B.Call (_expr, f, _, _typeSig, [B.Value v; B.Const (Lit cVal, _)]) as expr ->
-            // try to create a guard from call
-            // handles things like op_LessThan etc
-            let v, nm = safeVar true nm v.LogicalName
-            let guardExps, nm = processExpr nm expr
-            cerl.PVar v, cerl.Guard guardExps, nm
-        | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
-            //Cons cell without any name bindings
-            cerl.PList (cerl.LL ([cerl.PVar "_"], cerl.PVar "_")), cerl.defaultGuard, nm
-        | B.UnionCaseTest (e, IsFSharpList t, IsCase "Empty" c) ->
-            cerl.PLit cerl.LNil, cerl.defaultGuard, nm
-        // any other DUs turn them into {'CaseName\, _, _, _} patterns
-        | B.UnionCaseTest (e, t, c) ->
-            let litAtomP name =
-                cerl.PLit (cerl.LAtom (cerl.Atom name))
-            let unionCases = t.TypeDefinition.UnionCases |> Seq.toList
-            let unionTagPat = cerl.PLit (cerl.LAtom (cerl.Atom c.CompiledName))
-            let caseFieldPats = c.UnionCaseFields |> Seq.toList
-                                |> List.map (fun _ -> cerl.PVar "_")
-            cerl.PTuple (unionTagPat :: caseFieldPats), cerl.defaultGuard, nm
-        | expr ->
-            failwithf "processPat not implemented %A" expr
-
-    and processITEs nm expr : (FSharpExpr * (cerl.Pat * cerl.Guard * Map<string, int>)) list =
-        [ match expr with
-          | B.IfThenElse(fi, neht, esle) ->
-              let pat, guard, nm' = processPat nm fi
-              // need to pass orig nm here as each branch need the same outer scope
-              let thenPats = processITEs nm neht
-              let nextExpr = match thenPats with
-                             | (nextExpr, _) :: _ -> nextExpr
-                             | _ -> failwith "could not get nextExpr"
-              yield!  (nextExpr, (pat, guard, nm')) :: thenPats
-              yield! processITEs nm esle
-          | e ->
-              yield e, (cerl.PVar "_", cerl.defaultGuard, nm)
-          | x -> failwithf "processITE not impl %A" x ]
-
     and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>)  expr =
-        let boolPat tf = (cerl.Pat (cerl.PLit (cerl.LAtom (cerl.Atom tf))))
         match expr with
         | B.IfThenElse(fi, neht, esle) ->
             let ifExps, nm = processExpr nm fi
@@ -476,174 +371,153 @@ module Compiler =
             let el = litAtom "element" |> constr
             let e, nm = processExpr nm e
             let idx = cerl.LInt idx
-            modCall erlang el [cerl.Lit idx |> constr; e], nm
+            modCall erlang el [cerl.Lit idx |> constr; e] |> constr, nm
 
-        let res, nmOut =
-            match expr with
-            | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
-                let a1, nm = processExpr nm e
-                let a2 = cerl.Lit (cerl.LNil) |> constr
-                modCall erlang notEquals [a1; a2], nm
-            | B.UnionCaseTest (e, IsFSharpList t, IsCase "Empty" c) ->
-                let a1, nm = processExpr nm e
-                let a2 = cerl.Lit (cerl.LNil) |> constr
-                modCall erlang equals [a1; a2], nm
-                //Cons cell without any name bindings
-            | B.UnionCaseTest (e, t, CaseName name) ->
-                let left, nm = element nm 1 e
-                let right = cerl.Lit (cerl.LAtom name) |> constr
-                modCall erlang equals [constr left; right], nm
-        // any other DUs turn them into {'CaseName\, _, _, _} patterns
-            | B.Call (callee, f, _, _typeSig, expressions) ->
-                (* printfn "Call expr %A %A %A" expr f expressions *)
-                mapCall nm callee f expressions
-            | B.Value v ->
-                let v', nm = safeVar false nm v.LogicalName
-                cerl.Var v', nm
-            | B.Const (o, t) ->
-                mapConst o, nm
-            | B.NewTuple (fsType, args) ->
+        match expr with
+        | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
+            let a1, nm = processExpr nm e
+            let a2 = cerl.Lit (cerl.LNil) |> constr
+            modCall erlang notEquals [a1; a2] |> constr, nm
+        | B.UnionCaseTest (e, IsFSharpList t, IsCase "Empty" c) ->
+            let a1, nm = processExpr nm e
+            let a2 = cerl.Lit (cerl.LNil) |> constr
+            modCall erlang equals [a1; a2] |> constr, nm
+            //Cons cell without any name bindings
+        | B.UnionCaseTest (e, t, CaseName name) ->
+            let left, nm = element nm 1 e
+            let right = cerl.Lit (cerl.LAtom name) |> constr
+            modCall erlang equals [left; right] |> constr, nm
+    // any other DUs turn them into {'CaseName\, _, _, _} patterns
+        | B.Call (callee, f, _, _typeSig, expressions) ->
+            (* printfn "Call expr %A %A %A" expr f expressions *)
+            translateCall nm callee f expressions
+        | B.Value v ->
+            let v', nm = safeVar false nm v.LogicalName
+            cerl.Var v' |> constr, nm
+        | B.Const (o, t) ->
+            mapConst o |> constr, nm
+        | B.NewTuple (fsType, args) ->
+            let args, nm = foldNames nm processExpr args
+            cerl.Tuple args |> constr, nm
+        | B.TupleGet (fsType, idx, e) ->
+            let idx = idx+1
+            element nm idx e
+        | B.NewUnionCase(fsType, fsUnionCase, argExprs) as e ->
+            let unionTag = fsUnionCase.CompiledName |> litAtom |> constr
+            let args, nm = foldNames nm processExpr argExprs
+            cerl.Tuple (unionTag :: args) |> constr, nm
+            (* failwithf "NewUnionCase not impl %A" e *)
+        | B.Let ((v, e), expr) as l ->
+            let ass, nm = processExpr nm e
+            let v', nm = safeVar true nm v.LogicalName
+            let next, nm = processExpr nm expr
+            mkLet v' ass next |> constr, nm
+        | B.IfThenElse (fi, neht, esle) as ite ->
+            //plain if then else without decision tree
+            (* printfn "if %A\r\nthen %A\r\nelse %A" fi neht esle *)
+            let ifExps, nm = processExpr nm fi
+            let thenExpr, nm = processExpr nm neht
+            let elseExpr, nm = processExpr nm esle
+            let a1 = altExpr (boolPat "true", cerl.defaultGuard, thenExpr)
+            let a2 = altExpr (boolPat "false", cerl.defaultGuard, elseExpr)
+            cerl.Case(ifExps, [a1;a2]) |> constr, nm
+        | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
+            (* printfn "ite %A" ite *)
+            let l = List.mapi (fun i x -> i, x) branches |> Map
+            let e, nm = processDT nm l ite
+            constr e, nm
+        | B.FSharpFieldGet (Some e, t, fld) ->
+            // TODO when would the expr be None here
+            let tupleIndex =
+                t.TypeDefinition.FSharpFields
+                |> Seq.findIndex ((=) fld)
+                |> (+) 1
+            let e, nm = processExpr nm e
+            tupleGet tupleIndex e |> constr, nm
+        | B.NewRecord (t, args) ->
+            let args, nm = foldNames nm processExpr args
+            //type to atom
+            let recordName =
+                litAtom t.TypeDefinition.LogicalName |> constr
+            cerl.Tuple (recordName :: args) |> constr, nm
+        | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
+                         IsField "Head" fld) ->
+
+             let hd = litAtom "hd" |> constr
+             let e, nm = processExpr nm value
+             modCall erlang hd [e] |> constr, nm
+        | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
+                         IsField "Tail" fld) ->
+             let hd = litAtom "tl" |> constr
+             let e, nm = processExpr nm value
+             modCall erlang hd [e] |> constr, nm
+        | B.UnionCaseGet(e, t, c, f) ->
+            (* printfn "v %A t %A c %A f %A" e t c.UnionCaseFields f *)
+            // turn these into element/2 calls
+            let idx =
+                c.UnionCaseFields
+                |> Seq.findIndex ((=) f)
+            let element = litAtom "element" |> constr
+            let e, nm = processExpr nm e
+            let idx = idx+2 |> cerl.LInt
+            modCall erlang element [cerl.Lit idx |> constr; e] |> constr, nm
+        | B.Coerce(a, e) ->
+            processExpr nm e
+        | B.NewObject(IsCtor m, types, exprs) ->
+            (* printfn "m %A" m.CompiledName *)
+            let expss, nm = foldNames nm processExpr exprs
+            let expss = expss
+                        |> List.choose (function
+                                        | cerl.Exp ae -> Some ae
+                                        // should be a fold so we can use all Exps
+                                        (* | cerl.Exps ae -> Some ae *)
+                                        | _ -> None)
+            cerl.Exps (cerl.Constr expss), nm
+        // horrendously specific match to intercept printfn and sprintf
+        | B.Application (B.Let ((_, B.Call (None, (LogicalName "printfn" | LogicalName "sprintf" as p), _, _,
+                                            [B.Coerce (_, B.NewObject (_, _, [B.Const (:? string as str, _)]))])), _letBody),
+                         _types, args) ->
+            let format = annLAtom "format"
+            // primitive format converion
+            let str = str.Replace("%s", "~s")
+                         .Replace("%i", "~b")
+                         .Replace("%A", "~p")
+            let io, str =
+                match p.LogicalName with
+                | "printfn" ->
+                    let str = str + "~n" //add newline as io:format does not
+                    annLAtom "io", str
+                | "sprintf" ->
+                    annLAtom "io_lib", str
+                | _ -> failwith "unexpected"
+            let arg1 = mapConst str |> constr
+            let args, nm = foldNames nm processExpr args
+            let args = [arg1; cerl.List (cerl.L args) |> constr]
+            modCall io format args |> constr, nm
+        | B.Application (target, _types, args) ->
+            (* printfn "app target: %A args: %A" target args *)
+            // if the target is not a plain value or a function we
+            // may not be able to process it inline and thus need to wrap it
+            // in a Let
+            match processExpr nm target with
+            | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _ | cerl.Let _)) as t, nm ->
+                // we're cool the target is just a var or fun or let - we can inline
+                // TODO: literals?
                 let args, nm = foldNames nm processExpr args
-                cerl.Tuple args, nm
-            | B.TupleGet (fsType, idx, e) ->
-                let idx = idx+1
-                element nm idx e
-            | B.NewUnionCase(fsType, fsUnionCase, argExprs) as e ->
-                let unionTag = fsUnionCase.CompiledName |> litAtom |> constr
-                let args, nm = foldNames nm processExpr argExprs
-                cerl.Tuple (unionTag :: args), nm
-                (* failwithf "NewUnionCase not impl %A" e *)
-            | B.Let ((v, e), expr) as l ->
-                let ass, nm = processExpr nm e
-                let v', nm = safeVar true nm v.LogicalName
-                let next, nm = processExpr nm expr
-                mkLet v' ass next, nm
-            | B.IfThenElse (fi, neht, esle) as ite ->
-                //plain if then else without decision tree
-                (* printfn "if %A\r\nthen %A\r\nelse %A" fi neht esle *)
-                let caseExpr, nm = extractCaseExpr nm fi
-                match processITEs nm ite
-                      |> groupPatterns fst
-                      |> mergePatterns with
-                | ites ->
-                    let alts =
-                        ites
-                        |> List.map (fun (expr, (pat, guard, nm)) ->
-                            let exps, _ = processExpr nm expr
-                            altExpr (cerl.Pat pat, guard, exps))
-                    cerl.Case(caseExpr, alts), nm
-            | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
-                (* printfn "ite %A" ite *)
-                let l = List.mapi (fun i x -> i, x) branches |> Map
-                processDT nm l ite
-            (* | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree -> *)
-            (*     printfn "ite %A \r\nbranches %A" ite  branches *)
-            (*     // TODO: it wont always be vars *)
-            (*     let caseExpr, nm = extractCaseExpr nm fi *)
-            (*     // ordering matters!! *)
-            (*     let group = function | B.DecisionTreeSuccess(i, _) -> i | x -> hash x *)
-            (*     let ites = *)
-            (*         let rawItes = processITEs nm ite *)
-            (*         let lookup = rawItes *)
-            (*                      |> List.map (fun (expr, _pat) -> group expr, expr) *)
-            (*                      |> List.fold (fun s (i, a) -> Map.add i a s) Map.empty *)
-            (*         rawItes *)
-            (*         |> groupPatterns (fun (i, ps) -> group i) *)
-            (*         |> mergePatterns *)
-            (*         |> List.map (fun (i, ps) -> lookup.[i], ps) *)
-            (*         |> List.map (fun (k, v) -> *)
-            (*                         match k with *)
-            (*                         | B.DecisionTreeSuccess(idx, targetValueExprs) -> *)
-            (*                             idx, (targetValueExprs, v) *)
-            (*                         | x -> failwithf "unexpected %A" x) *)
-
-            (*     let branchMap = branches |> List.mapi (fun i v -> i, v) |> Map *)
-            (*     (1* printfn "lmap %A" lmap *1) *)
-            (*     printfn "ites %A" ites *)
-            (*     let alts : List<cerl.Ann<cerl.Alt>> = *)
-            (*         ites *)
-            (*         |> List.map (fun (i, (valueExprs, (pat, grd, nm))) -> *)
-            (*                 //merge mfvs with valueExprs + pat *)
-            (*                 let mfvs, e = branchMap.[i] *)
-            (*                 let mfvs = mfvs |> List.map (fun v -> v.CompiledName) *)
-            (*                 let assignments, mn = *)
-            (*                     List.zip mfvs valueExprs *)
-            (*                     |> List.fold (fun (agg, nm) (v, e) -> *)
-            (*                         let v, nm = safeVar false nm v *)
-            (*                         let e, nm = processExpr nm e *)
-            (*                         ((v, e) :: agg), nm) ([], nm) *)
-
-            (*                 let e, _ = processExpr nm e *)
-            (*                 let vls = List.map fst assignments *)
-            (*                 let es = List.choose (fun (_, e) -> *)
-            (*                                 match e with *)
-            (*                                 | cerl.Exp ae -> Some ae *)
-            (*                                 | _ -> None) assignments *)
-            (*                 let e = *)
-            (*                     cerl.Let ((vls, cerl.Exps (cerl.Constr es)), e) *)
-            (*                 // we can throw away nm now as have branched *)
-            (*                 // TODO if e is a let it should be in pattern? *)
-            (*                 altExpr (cerl.Pat pat, grd, e |> constr)) *)
-            (*     cerl.Case (caseExpr, alts), nm *)
-            | B.FSharpFieldGet (Some e, t, fld) ->
-                // TODO when would the expr be None here
-                let tupleIndex =
-                    t.TypeDefinition.FSharpFields
-                    |> Seq.findIndex ((=) fld)
-                    |> (+) 1
-                let e, nm = processExpr nm e
-                tupleGet tupleIndex e, nm
-            | B.NewRecord (t, args) ->
-                let args, nm = foldNames nm processExpr args
-                //type to atom
-                let recordName =
-                    litAtom t.TypeDefinition.LogicalName |> constr
-                cerl.Tuple (recordName :: args), nm
-            | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
-                             IsField "Head" fld) ->
-
-                 let hd = litAtom "hd" |> constr
-                 let e, nm = processExpr nm value
-                 modCall erlang hd [e], nm
-            | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
-                             IsField "Tail" fld) ->
-                 let hd = litAtom "tl" |> constr
-                 let e, nm = processExpr nm value
-                 modCall erlang hd [e], nm
-            | B.UnionCaseGet(e, t, c, f) ->
-                (* printfn "v %A t %A c %A f %A" e t c.UnionCaseFields f *)
-                // turn these into element/2 calls
-                let idx =
-                    c.UnionCaseFields
-                    |> Seq.findIndex ((=) f)
-                let element = litAtom "element" |> constr
-                let e, nm = processExpr nm e
-                let idx = idx+2 |> cerl.LInt
-                modCall erlang element [cerl.Lit idx |> constr; e], nm
-            | B.Application (target, _types, args) ->
-                // if the target is not a plain value or a function we
-                // may not be able to process it inline and thus need to wrap it
-                // in a Let
-                match processExpr nm target with
-                | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _)) as t, nm ->
-                    // we're cool the target is just a var or fun - we can inline
-                    // TODO: literals?
+                apply t args |> constr, nm
+            | t, nm ->
+                //the target is something more complex and needs to be
+                //wrapped in a Let
+                let name, nm = uniqueName nm
+                let app, nm =
                     let args, nm = foldNames nm processExpr args
-                    apply t args, nm
-                | t, nm ->
-                    //the target is something more complex and needs to be
-                    //wrapped in a Let
-                    let name, nm = uniqueName nm
-                    let app, nm =
-                        let args, nm = foldNames nm processExpr args
-                        apply (varExps name) args |> constr, nm
-                    mkLet name t app, nm
-            | B.Lambda (p, expr) ->
-                let v, nm = safeVar true nm p.LogicalName
-                let body, nm = processExpr nm expr
-                cerl.Lambda ([v], body), nm
-            | x -> failwithf "not implemented %A" x
-        constr res, nmOut
+                    apply (varExps name) args |> constr, nm
+                mkLet name t app |> constr, nm
+        | B.Lambda (p, expr) ->
+            let v, nm = safeVar true nm p.LogicalName
+            let body, nm = processExpr nm expr
+            cerl.Lambda ([v], body) |> constr, nm
+        | x -> failwithf "not implemented %A" x
 
 
     let processModDecl decl =

@@ -71,5 +71,8 @@ main([]) ->
     TestDU = basics:makeDU(101),
     101 = basics:handleTestDU(TestDU),
 
+    io:format("-testing basics:*sprintf ~n"),
+    "prt: hi 5" = lists:flatten(basics:prt_something("hi", 5)),
+
     io:format("OK: basics~n"),
     ok.

@@ -10,7 +10,7 @@ let try_head l =
 
 let try_match_a_list l =
     match l with
-    | 1 :: _ :: h :: t when h > 2 -> Some h
+    | 1 :: _ :: h :: _ when h > 2 -> Some h
     | _ -> None
 
 let fixed_len_list l =
@@ -83,5 +83,7 @@ let handleTestDU r =
     | JustOk -> 0
     | NotOk -> 0
     | Ok i -> i
-    | Error (i, s) -> i
+    | Error (i, _) -> i
 
+let prt_something s i =
+    sprintf "prt: %s %i" s i

@@ -4,12 +4,18 @@
          listtest/1,
          strange_list/1,
          flip/3,
-         rec_test/0
+         rec_test/0,
+         make_map2/0,
+         make_map/0,
+         prt_something/2
         ]).
 
 -include_lib("test.hrl").
 
 -record(a_rec, {num :: integer()}).
+
+prt_something(S, I) ->
+    io:format("something ~s ~b~n", [S, I]).
 
 flip(F, A, B) -> F(A, B).
 
@@ -65,3 +71,11 @@ rec_test() ->
     receive
         X -> X
     end.
+
+make_map() ->
+    #{a => "test",
+      x => "banana"}.
+
+make_map2() ->
+    maps:new().
+

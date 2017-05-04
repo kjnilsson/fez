@@ -35,10 +35,13 @@ open fez.core
 (*     | [99;_;97;x] -> Some x *)
 (*     | _ -> None *)
 
-let try_match_a_list l =
-    match l with
-    | 1 :: _ :: h :: t when h > 2 -> Some h
-    | _ -> None
+let prt_something s i =
+    sprintf "something: %s  %i" s i
+
+(* let try_match_a_list l = *)
+(*     match l with *)
+(*     | 1 :: _ :: h :: _ when h > 2 -> Some h *)
+(*     | _ -> None *)
 (* type Result = *)
 (*     | JustOk *)
 (*     | NotOk *)

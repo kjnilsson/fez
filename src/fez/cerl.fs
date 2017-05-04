@@ -175,12 +175,15 @@ and Exp =
              List.map (Exps.prt 0) vals
              |> String.concat ","
              |> sprintf "%s{%s}" indent
+        | List l ->
+            let p = Exps.prt 0
+            ExprList<Exps>.prt p l
 
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =
-    | Exp of Ann<Exp>        // ^ single expression
-    | Exps of Ann<Ann<Exp> list> // ^ list of expressions
+    | Exp of Ann<Exp> // single expression
+    | Exps of Ann<Ann<Exp> list> // annotated list of expressions
     with
     static member empty =
         Exps (Constr [])
