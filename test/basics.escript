@@ -8,23 +8,26 @@ main([]) ->
     io:format("-testing basics:flip~n"),
     "therehi" = basics:flip(fun erlang:'++'/2, "hi", "there"),
 
+    Some = 'Microsoft.FSharp.Core.FSharpOption`1.Some',
+    None = 'Microsoft.FSharp.Core.FSharpOption`1.None',
+
     io:format("-testing basics:try_head~n"),
-    {'Some', 1} = basics:try_head([1]),
-    {'None'} = basics:try_head([]),
+    {Some, 1} = basics:try_head([1]),
+    {None} = basics:try_head([]),
 
     io:format("-testing basics:try_match_a_list~n"),
-    {'Some', 3} = basics:try_match_a_list([1, 2, 3, 4, 5]),
-    {'None'} = basics:try_match_a_list([1]),
+    {Some, 3} = basics:try_match_a_list([1, 2, 3, 4, 5]),
+    {None} = basics:try_match_a_list([1]),
 
     io:format("-testing basics:fixed_len_list~n"),
-    {'Some', 1} = basics:fixed_len_list([1, 2]),
-    {'Some', 4} = basics:fixed_len_list([99, 101, 97, 4]),
-    {'None'} = basics:fixed_len_list([1, 2, 1]),
+    {Some, 1} = basics:fixed_len_list([1, 2]),
+    {Some, 4} = basics:fixed_len_list([99, 101, 97, 4]),
+    {None} = basics:fixed_len_list([1, 2, 1]),
 
     io:format("-testing basics records~n"),
-    {person, "karl", 39} = P = basics:make_person("karl", 39),
+    {'basics.person', "karl", 39} = P = basics:make_person("karl", 39),
     39 = basics:age(P),
-    {person, "karl", 40} = basics:have_birthday(P),
+    {'basics.person', "karl", 40} = basics:have_birthday(P),
 
 
     io:format("-testing basics:sum~n"),

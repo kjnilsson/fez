@@ -112,8 +112,11 @@ module Compiler =
             Some c
         else None
 
-    let (|CaseName|) (c : FSharpUnionCase) =
-        c.CompiledName |> cerl.Atom
+    let mkUnionTag (t: FSharpType) (uc : FSharpUnionCase) =
+        t.TypeDefinition.FullName + "." + uc.Name
+
+    (* let (|CaseName|) (c : FSharpUnionCase) = *)
+    (*     c.CompiledName |> cerl.Atom *)
 
     let (|IsField|_|) fieldName (c : FSharpField) =
         if c.Name = fieldName then
@@ -125,6 +128,7 @@ module Compiler =
         if res.HasCriticalErrors then
             failwithf "Errs %A" res.Errors
         res
+
 
     let fezUnit =
         cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "fez_unit"))))
@@ -151,7 +155,10 @@ module Compiler =
         |> filterUnitVars
 
     let inspectT (t: FSharpType) =
-        t.TypeDefinition.UnionCases
+        t.TypeDefinition.Namespace,
+        t.TypeDefinition.CompiledName,
+        t.TypeDefinition.LogicalName,
+        t.TypeDefinition.FullName
 
     let altExpr = cerl.altExpr
 
@@ -445,7 +452,8 @@ module Compiler =
             let a2 = cerl.Lit (cerl.LNil) |> constr
             modCall erlang equals [a1; a2] |> constr, nm
             //Cons cell without any name bindings
-        | B.UnionCaseTest (e, t, CaseName name) ->
+        | B.UnionCaseTest (e, t, uc) ->
+            let name = mkUnionTag t uc |> cerl.Atom
             let left, nm = element nm 1 e
             let right = cerl.Lit (cerl.LAtom name) |> constr
             modCall erlang equals [left; right] |> constr, nm
@@ -464,8 +472,11 @@ module Compiler =
         | B.TupleGet (fsType, idx, e) ->
             let idx = idx+1
             element nm idx e
-        | B.NewUnionCase(fsType, fsUnionCase, argExprs) as e ->
-            let unionTag = fsUnionCase.CompiledName |> litAtom |> constr
+        | B.NewUnionCase(t, uc, argExprs) as e ->
+
+            (* inspectT t |> printfn "NewUnionCase %A %A" (uc.Name) *) 
+            let unionTag = mkUnionTag t uc |> litAtom |> constr
+            (* let unionTag = uc.FullName |> litAtom |> constr *)
             let args, nm = foldNames nm processExpr argExprs
             cerl.Tuple (unionTag :: args) |> constr, nm
             (* failwithf "NewUnionCase not impl %A" e *)
@@ -479,7 +490,8 @@ module Compiler =
             let alts =
                 cases
                 |> Seq.map (fun c ->
-                    let tag = cerl.PLit (cerl.LAtom (cerl.Atom c.Name))
+                    (* let tag = cerl.PLit (cerl.LAtom (cerl.Atom c.FullName)) *)
+                    let tag = cerl.PLit (cerl.LAtom (cerl.Atom (mkUnionTag t c)))
                     let fields =
                         c.UnionCaseFields
                         |> Seq.map (fun cf -> cerl.PVar "_")
@@ -528,7 +540,7 @@ module Compiler =
             let args, nm = foldNames nm processExpr args
             //type to atom
             let recordName =
-                litAtom t.TypeDefinition.LogicalName |> constr
+                litAtom t.TypeDefinition.FullName |> constr
             cerl.Tuple (recordName :: args) |> constr, nm
         | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
                          IsField "Head" fld) ->

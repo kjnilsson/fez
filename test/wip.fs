@@ -1,6 +1,10 @@
 module wip
 open Fez.Core
 
+let try_head l =
+    match l with
+    | h :: _ -> Some h
+    | [] -> None
  (* if case_test *)
  (* if head = const(2) -> D:0 *)
  (* then *)
@@ -9,14 +13,14 @@ open Fez.Core
  (*         else D:2 *)
  (*     else D:2 *)
 
-type person = {name: string; age: int}
+(* type person = {name: string; age: int} *)
 (* let make_person name age = *)
 (*     {name = name *)
 (*      age = age} *)
 
 (* let age r = r.age *)
 
-let have_birthday ({age = age} as p) = {p with age = age + 1}
+(* let have_birthday ({age = age} as p) = {p with age = age + 1} *)
 
 (* type ISay = *)
 (*     | Yes *)
@@ -57,12 +61,12 @@ let have_birthday ({age = age} as p) = {p with age = age + 1}
     (* prt_msg() *)
 
 
-let cube a b c =
-    a * b * c
+(* let cube a b c = *)
+(*     a * b * c *)
 
-let mkCube1 a b =
-    let ca = cube a
-    ca b
+(* let mkCube1 a b = *)
+(*     let ca = cube a *)
+(*     ca b *)
 
 
 
