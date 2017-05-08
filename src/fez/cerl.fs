@@ -78,6 +78,9 @@ with
             let hds = List.map Pat.prt hds
             let tl = Pat.prt tl
             sprintf "[%s | %s]" (String.concat "," hds) tl
+        | PAlias (Alias (v, p)) ->
+            let p = Pat.prt p
+            sprintf "%s = %s" v p
         | x -> failwithf "Pat.prt not impl %A" x
 
 and Alias = Alias of Var * Pat
@@ -105,6 +108,11 @@ with
         sprintf "%s%s when %s ->\r\n%s\r\n" indent pat guard body
 
 and TimeOut = TimeOut of Exps * Exps
+with
+    static member prt ((Indent indent) as i) (TimeOut (e, b)) =
+        let e = Exps.prt 0 e
+        let b = Exps.prt 0 b
+        sprintf "%safter %s ->\r\n%s" indent e b
 
 and Ann<'T> =
     | Constr of 'T      // ^ core erlang construct
@@ -133,7 +141,7 @@ and Exp =
     | Binary of List<BitString<Exps>>    // ^ binary expression
     | Op of Atom * List<Exps>             // ^ operator application
     | Try of Exps * (List<Var> * Exps) * (List<Var> * Exps) // ^ try expression
-    | Rec of List<Ann<Alt>> * TimeOut      // ^ receive expression
+    | Receive of Ann<Alt> list * TimeOut      // ^ receive expression
     | Catch of Exps                 // ^ catch expression
     with
     static member prt ((Indent indent) as i) expr =
@@ -171,6 +179,16 @@ and Exp =
                         sprintf "%s%s" s x
                     | x -> failwithf "not imple %A" x) "" alts
             sprintf "%scase %s of\r\n%s%send" indent caseExpr alts indent
+        | Receive (alts, after) ->
+            let alts =
+                List.fold(fun s a ->
+                    match a with
+                    | Constr a ->
+                        let x = Alt.prt (i+4) a
+                        sprintf "%s%s" s x
+                    | x -> failwithf "not imple %A" x) "" alts
+            let t = TimeOut.prt 0 after
+            sprintf "%sreceive\r\n%s%s%s" indent alts indent t
          | Tuple vals ->
              List.map (Exps.prt 0) vals
              |> String.concat ","
@@ -178,7 +196,10 @@ and Exp =
         | List l ->
             let p = Exps.prt 0
             ExprList<Exps>.prt p l
-
+        | Seq (first, second) ->
+            let f = Exps.prt i first
+            let s = Exps.prt i second
+            sprintf "do %s\r\n%s%s" f indent s
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =

@@ -1,4 +1,4 @@
--module('ListModule').
+-module('Microsoft.FSharp.Collections.ListModule').
 -compile(export_all).
 
 map(F, L) -> lists:map(F, L).

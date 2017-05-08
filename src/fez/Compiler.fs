@@ -27,7 +27,7 @@ module Util =
     (* let localPath = Path.GetDirectoryName(typeof<TypeInThisAssembly>.GetTypeInfo().Assembly.Location) *)
     let compilerArgs () =
         let fsharpCoreLib = typeof<Microsoft.FSharp.Core.MeasureAttribute>.GetTypeInfo().Assembly.Location
-        let fezCoreLib = typeof<fez.core.Pid>.GetTypeInfo().Assembly.Location
+        let fezCoreLib = typeof<Fez.Core.Pid>.GetTypeInfo().Assembly.Location
         let systemCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(systemCoreLib)
         let sysLib name = Path.Combine(sysPath, name + ".dll")
@@ -126,10 +126,32 @@ module Compiler =
             failwithf "Errs %A" res.Errors
         res
 
+    let fezUnit =
+        cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "fez_unit"))))
+
+    let (|IsFezUnit|_|) e =
+        match e with
+        | cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "fez_unit")))) ->
+            Some e
+        | _ -> None
+
+    let stripFezUnit =
+        function
+        | [IsFezUnit e] -> []
+        | args -> args
+
+    let filterUnitVars =
+        List.choose (fun (x : FSharpMemberOrFunctionOrValue) ->
+            if x.FullName = "unitVar0" then None
+            else Some x.FullName)
+
     let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
         pgs
         |> List.fold List.append []
-        |> List.map (fun x -> x.FullName)
+        |> filterUnitVars
+
+    let inspectT (t: FSharpType) =
+        t.TypeDefinition.UnionCases
 
     let altExpr = cerl.altExpr
 
@@ -281,11 +303,33 @@ module Compiler =
             Some f
         else None
 
+    let (|ShimmedCall|_|) (f: FSharpMemberOrFunctionOrValue) =
+        let modules =
+            ["Microsoft.FSharp.Collections.ListModule"
+             "Microsoft.FSharp.Core.Operators"
+             "Fez.Core"
+            ]
+        if f.IsModuleValueOrMember &&
+           List.contains f.EnclosingEntity.FullName modules then
+            Some f
+        else None
+
     let (|LogicalName|_|) t (f: FSharpMemberOrFunctionOrValue) =
         if f.LogicalName = t then Some ()
         else None
 
-    let rec translateCall nm callee (f : FSharpMemberOrFunctionOrValue) (exprs : FSharpExpr list) : (cerl.Exps * Map<string, int>) =
+    let (|IsUnitArg|_|) (f : FSharpMemberOrFunctionOrValue) =
+        if f.FullType.ToString() = "type Microsoft.FSharp.Core.unit" then Some f
+        else None
+
+    let (|IsUnit|_|) (f : FSharpType) =
+        if f.ToString() = "type Microsoft.FSharp.Core.unit" then Some f
+        else None
+
+    let rec translateCall nm callee
+                          (f : FSharpMemberOrFunctionOrValue)
+                          (argTypes: FSharpType list)
+                          (exprs : FSharpExpr list) : (cerl.Exps * Map<string, int>) =
         match callee, f, exprs with
         //special case mapping + on a string to ++
         | _, Intr2Erl "+", ExprType "string" _ :: _ ->
@@ -307,13 +351,15 @@ module Compiler =
             let length = litAtom "length" |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang length args |> constr, nm
-        | None, IsModuleMemberOn "ListModule" f, _ -> // FSharpCore module call
+        (* | None, IsModuleMemberOn "Microsoft.FSharp.Core.ListModule" name, _ -> // FSharpCore module call *)
+        | None, ShimmedCall f, _ -> // FSharpCore module call
             let name = f.LogicalName
-            let m = litAtom "ListModule" |> constr
+            let eeFullName = f.EnclosingEntity.FullName
+            let m = litAtom eeFullName |> constr
             let f = litAtom name |> constr
             let args, nm = foldNames nm processExpr exprs
-            let args = args |> List.map (flattenLambda [])
-            (* printfn "args %A" args *)
+            // remove fez_unit
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
             modCall m f args |> constr, nm
         | None, LogicalName "printfn" _, [e] ->
             let io = annLAtom "io"
@@ -324,11 +370,21 @@ module Compiler =
             let call = modCall io format [arg; argsArg] |> constr
             // inspect string to see how many actual args there are?
             lambda [argsVar] call |> constr, nm
-        | callee, _, e -> //apply to named function (local)
+        | callee, f, e -> //apply to named function (local)
             let name = f.LogicalName
+            (* printfn "translatecall %s %A %A" name argTypes exprs *)
             // TODO this probably wont always work
             let funName = litAtom name
-            let args, nm = foldNames nm processExpr exprs
+            let args, nm =
+                exprs
+                |> foldNames nm processExpr
+            (* let args = *)
+            (*     args |> List.zip argTypes *)
+            (*     |> List.map (fun (t, a) -> *)
+            (*         match t with *)
+            (*         | IsUnit t -> fezUnit *)
+            (*         | _ -> a) *)
+            let args = args |> stripFezUnit
             let numArgs = List.length args
             let func = mkFunction name numArgs |> cerl.Fun |> constr
             let app = apply func args
@@ -388,9 +444,9 @@ module Compiler =
             let right = cerl.Lit (cerl.LAtom name) |> constr
             modCall erlang equals [left; right] |> constr, nm
     // any other DUs turn them into {'CaseName\, _, _, _} patterns
-        | B.Call (callee, f, _, _typeSig, expressions) ->
+        | B.Call (callee, f, _, argTypes, expressions) ->
             (* printfn "Call expr %A %A %A" expr f expressions *)
-            translateCall nm callee f expressions
+            translateCall nm callee f argTypes expressions
         | B.Value v ->
             let v', nm = safeVar false nm v.LogicalName
             cerl.Var v' |> constr, nm
@@ -407,8 +463,36 @@ module Compiler =
             let args, nm = foldNames nm processExpr argExprs
             cerl.Tuple (unionTag :: args) |> constr, nm
             (* failwithf "NewUnionCase not impl %A" e *)
+        | B.Let ((v, B.Call (_, (LogicalName "receive" as m), _t, [t], _)), expr) as r ->
+            // generate basic structural case to for the DU type
+            // then generate standard if then else
+            let cases = t.TypeDefinition.UnionCases
+            let alias, nm = uniqueName nm
+            let mkAliasP p = cerl.PAlias (cerl.Alias (alias, p))
+
+            let alts =
+                cases
+                |> Seq.map (fun c ->
+                    let tag = cerl.PLit (cerl.LAtom (cerl.Atom c.Name))
+                    let fields =
+                        c.UnionCaseFields
+                        |> Seq.map (fun cf -> cerl.PVar "_")
+                        |> Seq.toList
+                    let pat = cerl.PTuple (tag :: fields) |> mkAliasP
+                    cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard, constr (cerl.Var alias)))
+                )
+                |> Seq.toList
+            let infinity =
+                let expiry = litAtom "infinity" |> constr
+                let body = litAtom "true" |> constr
+                cerl.TimeOut (expiry, body)
+            let receive = cerl.Receive (alts, infinity) |> constr
+            let n, nm = safeVar true nm v.LogicalName
+            let letExps, nm = processExpr nm expr
+            mkLet n receive letExps |> constr, nm
         | B.Let ((v, e), expr) as l ->
-            let ass, nm = processExpr nm e
+            // ignore names introduced in the variable assignment expression
+            let ass, _ = processExpr nm e
             let v', nm = safeVar true nm v.LogicalName
             let next, nm = processExpr nm expr
             mkLet v' ass next |> constr, nm
@@ -500,8 +584,8 @@ module Compiler =
             // may not be able to process it inline and thus need to wrap it
             // in a Let
             match processExpr nm target with
-            | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _ | cerl.Let _)) as t, nm ->
-                // we're cool the target is just a var or fun or let - we can inline
+            | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _ )) as t, nm ->
+                // we're cool the target is just a var or fun - we can inline
                 // TODO: literals?
                 let args, nm = foldNames nm processExpr args
                 apply t args |> constr, nm
@@ -512,8 +596,21 @@ module Compiler =
                 let app, nm =
                     let args, nm = foldNames nm processExpr args
                     apply (varExps name) args |> constr, nm
+                (* printfn "APP %A" app *)
                 mkLet name t app |> constr, nm
+        | B.Sequential(first, second) ->
+            let f, nm = processExpr nm first
+            let s, nm = processExpr nm second
+            cerl.Seq (f, s) |> constr, nm
+        | B.Lambda (IsUnitArg p, expr) ->
+            (* printfn "Lambda!! %A %A" p (p.FullType.ToString()) *)
+            let unitName, nm = safeVar true nm p.LogicalName
+            let body, nm = processExpr nm expr
+            // wrap body in let so that unit arg is mapped to fez_unit
+            let body = mkLet unitName fezUnit body |> constr
+            cerl.Lambda ([], body) |> constr, nm
         | B.Lambda (p, expr) ->
+            (* printfn "Lambda! %A %A" p (p.FullType.ToString()) *)
             let v, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
             cerl.Lambda ([v], body) |> constr, nm
@@ -549,8 +646,8 @@ module Compiler =
     // TODO: only inline those that are actually used
     let defaultFunDefs =
         [
-            cerl.op_ComposeRight
-            cerl.op_ComposeLeft
+            (* cerl.op_ComposeRight *)
+            (* cerl.op_ComposeLeft *)
         ]
 
     let processDecl decl =

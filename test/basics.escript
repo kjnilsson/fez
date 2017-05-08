@@ -74,5 +74,7 @@ main([]) ->
     io:format("-testing basics:*sprintf ~n"),
     "prt: hi 5" = lists:flatten(basics:prt_something("hi", 5)),
 
+    io:format("-testing spawn send and receive ~n"),
+    {["no"], ["gogogo"], ["goodbye"]} = basics:hello_hello(),
     io:format("OK: basics~n"),
     ok.

@@ -87,3 +87,43 @@ let handleTestDU r =
 
 let prt_something s i =
     sprintf "prt: %s %i" s i
+
+type ISay =
+    | Yes
+    | Stay
+    | Hello
+
+type YouSay =
+    | No
+    | GoGoGo
+    | Goodbye
+
+open Fez.Core
+
+let prt_msg() =
+    match receive<YouSay>() with
+    | No -> sprintf "%s" "no"
+    | GoGoGo -> sprintf "%s" "gogogo"
+    | Goodbye -> sprintf "%s" "goodbye"
+
+let rec you_fun iPid () =
+    match receive<ISay>() with
+    | Yes ->
+        iPid <! No
+        you_fun iPid ()
+    | Stay ->
+        iPid <! GoGoGo
+        you_fun iPid ()
+    | Hello -> iPid <! Goodbye
+
+let hello_hello () =
+    let iPid = self()
+    let youPid = you_fun iPid |> spawn
+
+    youPid <! Yes
+    youPid <! Stay
+    youPid <! Hello
+
+    prt_msg(),
+        prt_msg(),
+            prt_msg()

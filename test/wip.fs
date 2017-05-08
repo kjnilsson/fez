@@ -1,5 +1,5 @@
 module wip
-open fez.core
+open Fez.Core
 
  (* if case_test *)
  (* if head = const(2) -> D:0 *)
@@ -9,11 +9,64 @@ open fez.core
  (*         else D:2 *)
  (*     else D:2 *)
 
+type person = {name: string; age: int}
+(* let make_person name age = *)
+(*     {name = name *)
+(*      age = age} *)
 
-(* let recTest () = *)
-(*     match receive<string>() with *)
-(*     | "hi" as m-> Some m :b cerl*)
-(*     | _ -> None *)
+(* let age r = r.age *)
+
+let have_birthday ({age = age} as p) = {p with age = age + 1}
+
+(* type ISay = *)
+(*     | Yes *)
+(*     | Stay *)
+(*     | Hello *)
+
+(* type YouSay = *)
+(*     | No *)
+(*     | GoGoGo *)
+(*     | Goodbye *)
+
+(* let prt_msg() = *)
+(*     match receive<YouSay>() with *)
+(*     | No -> printfn "%s" "no" *)
+(*     | GoGoGo -> printfn "%s" "gogogo" *)
+(*     | Goodbye -> printfn "%s" "goodbye" *)
+
+(* let rec you_fun iPid () = *)
+(*     match receive<ISay>() with *)
+(*     | Yes -> *)
+(*         iPid <! No *)
+(*         you_fun iPid () *)
+(*     | Stay -> *)
+(*         iPid <! GoGoGo *)
+(*         you_fun iPid () *)
+(*     | Hello -> iPid <! Goodbye *)
+
+(* let hello_hello () = *)
+(*     let iPid = self() *)
+(*     let youPid = you_fun iPid |> spawn *)
+
+    (* youPid <! Yes *)
+    (* youPid <! Stay *)
+    (* youPid <! Hello *)
+
+    (* prt_msg() *)
+    (* prt_msg() *)
+    (* prt_msg() *)
+
+
+let cube a b c =
+    a * b * c
+
+let mkCube1 a b =
+    let ca = cube a
+    ca b
+
+
+
+
 
 (* type Maybe = *)
 (*     | Ok of string *)
@@ -35,8 +88,8 @@ open fez.core
 (*     | [99;_;97;x] -> Some x *)
 (*     | _ -> None *)
 
-let prt_something s i =
-    sprintf "something: %s  %i" s i
+(* let prt_something s i = *)
+(*     sprintf "something: %s  %i" s i *)
 
 (* let try_match_a_list l = *)
 (*     match l with *)
