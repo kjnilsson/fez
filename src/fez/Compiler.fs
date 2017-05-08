@@ -400,6 +400,12 @@ module Compiler =
             let a1 = altExpr (boolPat "true", cerl.defaultGuard, constr thenExpr)
             let a2 = altExpr (boolPat "false", cerl.defaultGuard, constr elseExpr)
             cerl.Case(ifExps, [a1;a2]), nm
+        | B.DecisionTreeSuccess(i, []) ->
+            let mfvs, expr = expsLookup.[i]
+            let e, nm = processExpr nm expr
+            match e with
+            | cerl.Exp (cerl.Constr e) -> e, nm
+            | _ -> failwith "no"
         | B.DecisionTreeSuccess(i, valueExprs) ->
             let mfvs, expr = expsLookup.[i]
             let mfvs = mfvs |> List.map (fun v -> v.CompiledName)

@@ -6,7 +6,9 @@ module Util =
     let (|Indent|) num =
         String.replicate num " "
 
-    let prtNl() = printf "\r\n"
+    let nl = System.Environment.NewLine
+    let prtNl() = printf "%s" nl
+
 
 type Var = string
 
@@ -105,14 +107,15 @@ with
         let pat = Pats.prt pats
         let guard = Exps.prt 0 guardExps
         let body = Exps.prt (i+4) exps
-        sprintf "%s%s when %s ->\r\n%s\r\n" indent pat guard body
+        sprintf "%s%s when %s ->%s%s%s" indent pat guard nl body nl
 
 and TimeOut = TimeOut of Exps * Exps
 with
     static member prt ((Indent indent) as i) (TimeOut (e, b)) =
+        let i4 = i+4
         let e = Exps.prt 0 e
-        let b = Exps.prt 0 b
-        sprintf "%safter %s ->\r\n%s" indent e b
+        let b = Exps.prt i4 b
+        sprintf "%safter %s ->%s%s%s" indent e nl indent b
 
 and Ann<'T> =
     | Constr of 'T      // ^ core erlang construct
@@ -146,18 +149,18 @@ and Exp =
     with
     static member prt ((Indent indent) as i) expr =
         match expr with
-        | Var v -> sprintf "%s" v
+        | Var v -> sprintf "%s%s" indent v
         | Lit lit ->
-            Literal.prt lit
+            Literal.prt lit |> sprintf "%s%s" indent
         | Lambda (vars, exps) ->
             let expsp = Exps.prt (i+4) exps
             let varsp = String.concat "," vars
-            sprintf "%sfun (%s) ->\r\n%s" indent varsp expsp
+            sprintf "%sfun (%s) ->%s%s" indent varsp nl expsp
         | Fun (Function (Atom name, arity)) ->
             sprintf "'%s'/%i" name arity
         | App (targetExps, args) ->
-            let target = Exps.prt (i+4) targetExps
-            let argsp = args |> List.map (Exps.prt i) |> String.concat ","
+            let target = Exps.prt 0 targetExps
+            let argsp = args |> List.map (Exps.prt 0) |> String.concat ","
             sprintf "%sapply %s (%s)" indent target argsp
         | ModCall ((left, right), args) ->
             let leftExp = Exps.prt 0 left
@@ -165,10 +168,11 @@ and Exp =
             let argsp = args |> List.map (Exps.prt 0) |> String.concat ","
             sprintf "%scall %s:%s(%s)" indent leftExp rightExp argsp
         | Let ((v, e), next) ->
+            let i4 = i+4
             let vars = String.concat "," v
-            let assign = Exps.prt 0 e
-            let next' = Exps.prt 0 next
-            sprintf "%slet <%s> = %s\r\n%sin %s" indent vars assign indent next'
+            let assign = Exps.prt i4 e
+            let next' = Exps.prt i4 next
+            sprintf "%slet <%s> =%s%s%s%sin%s%s" indent vars nl assign nl indent nl next'
         | Case (caseExpr, alts) ->
             let caseExpr = Exps.prt 0 caseExpr
             let alts =
@@ -178,7 +182,7 @@ and Exp =
                         let x = Alt.prt (i+4) a
                         sprintf "%s%s" s x
                     | x -> failwithf "not imple %A" x) "" alts
-            sprintf "%scase %s of\r\n%s%send" indent caseExpr alts indent
+            sprintf "%scase %s of%s%s%send" indent caseExpr nl alts indent
         | Receive (alts, after) ->
             let alts =
                 List.fold(fun s a ->
@@ -187,8 +191,8 @@ and Exp =
                         let x = Alt.prt (i+4) a
                         sprintf "%s%s" s x
                     | x -> failwithf "not imple %A" x) "" alts
-            let t = TimeOut.prt 0 after
-            sprintf "%sreceive\r\n%s%s%s" indent alts indent t
+            let t = TimeOut.prt i after
+            sprintf "%sreceive%s%s%s" indent nl alts t
          | Tuple vals ->
              List.map (Exps.prt 0) vals
              |> String.concat ","
@@ -197,9 +201,10 @@ and Exp =
             let p = Exps.prt 0
             ExprList<Exps>.prt p l
         | Seq (first, second) ->
-            let f = Exps.prt i first
-            let s = Exps.prt i second
-            sprintf "do %s\r\n%s%s" f indent s
+            let i4 = i+4
+            let f = Exps.prt i4 first
+            let s = Exps.prt i4 second
+            sprintf "%sdo%s%s%s%s" indent nl f nl s
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =
@@ -218,7 +223,7 @@ and Exps =
                 |> List.choose (function
                                 | Constr e -> Some (Exp.prt 0 e)
                                 | _ -> None)
-            sprintf "<%s>" (String.concat "," exps)
+            sprintf "%s<%s>" indent (String.concat "," exps)
         | x -> failwithf "Exps.prt not impl: %A" x
 
 and FunDef = FunDef of Ann<Function> * Ann<Exp>
@@ -228,7 +233,7 @@ and FunDef = FunDef of Ann<Function> * Ann<Exp>
         | (Constr f, Constr e) ->
             let fp = Function.prt 0 f
             let ep = Exp.prt 4 e
-            sprintf "%s =\r\n%s\r\n" fp ep
+            sprintf "%s =%s%s%s" fp nl ep nl
         | _ -> failwith "Ann not implemented"
 
 and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
