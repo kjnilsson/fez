@@ -87,6 +87,9 @@ basics_test() ->
     [1] = basics:yield_it(4),
     [1] = basics:yield_it(5),
 
+    io:format("-testing op_Range ~n"),
+    [0,1,2,3] = basics:make_ints(),
+    [0,2,4,6] = basics:make_steps(),
 
 
     io:format("OK: basics~n"),

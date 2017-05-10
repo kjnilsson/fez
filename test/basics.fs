@@ -136,3 +136,8 @@ let yield_it x =
             yield x
     ]
 
+let make_ints() =
+    [0 .. 3]
+
+let make_steps() =
+    [0 .. 2 .. 6]

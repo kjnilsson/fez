@@ -1,13 +1,19 @@
 module wip
 open Fez.Core
 
-let yield_it x =
-    seq {
-        yield 1
-        yield 2
-        if x > 5 then
-            yield x
-    }
+let make_ints() =
+    [0 .. 5]
+
+let make_steps() =
+    [0 .. 2 .. 6]
+
+(* let yield_it x = *)
+(*     seq { *)
+(*         yield 1 *)
+(*         yield 2 *)
+(*         if x > 5 then *)
+(*             yield x *)
+(*     } *)
 
 (* let try_head l = *)
 (*     match l with *)
