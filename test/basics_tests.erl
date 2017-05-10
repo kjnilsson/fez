@@ -1,8 +1,10 @@
-#!/usr/bin/env escript
-% vi: ft=erlang
+-module(basics_tests).
+-compile(export_all).
+
+-include_lib("eunit/include/eunit.hrl").
 
 
-main([]) ->
+basics_test() ->
     true = code:add_pathz(filename:dirname(escript:script_name())),
     true = code:add_pathz(filename:dirname(filename:dirname(escript:script_name())) ++ "/ebin"),
     io:format("-testing basics:flip~n"),
@@ -79,5 +81,13 @@ main([]) ->
 
     io:format("-testing spawn send and receive ~n"),
     {["no"], ["gogogo"], ["goodbye"]} = basics:hello_hello(),
+
+    io:format("-testing yield ~n"),
+    [1,42] = basics:yield_it(42),
+    [1] = basics:yield_it(4),
+    [1] = basics:yield_it(5),
+
+
+
     io:format("OK: basics~n"),
     ok.

@@ -1,10 +1,18 @@
 module wip
 open Fez.Core
 
-let try_head l =
-    match l with
-    | h :: _ -> Some h
-    | [] -> None
+let yield_it x =
+    seq {
+        yield 1
+        yield 2
+        if x > 5 then
+            yield x
+    }
+
+(* let try_head l = *)
+(*     match l with *)
+(*     | h :: _ -> Some h *)
+(*     | [] -> None *)
  (* if case_test *)
  (* if head = const(2) -> D:0 *)
  (* then *)

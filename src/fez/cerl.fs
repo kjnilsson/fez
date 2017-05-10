@@ -148,6 +148,7 @@ and Exp =
     | Catch of Exps                 // ^ catch expression
     with
     static member prt ((Indent indent) as i) expr =
+        let i4 = i+4
         match expr with
         | Var v -> sprintf "%s%s" indent v
         | Lit lit ->
@@ -165,16 +166,16 @@ and Exp =
         | ModCall ((left, right), args) ->
             let leftExp = Exps.prt 0 left
             let rightExp = Exps.prt 0 right
-            let argsp = args |> List.map (Exps.prt 0) |> String.concat ","
-            sprintf "%scall %s:%s(%s)" indent leftExp rightExp argsp
+            let concStr = sprintf ",%s" nl
+            let argsp = args |> List.map (Exps.prt i4) |> String.concat concStr
+            sprintf "%scall %s:%s(%s%s)" indent leftExp rightExp nl argsp
         | Let ((v, e), next) ->
-            let i4 = i+4
             let vars = String.concat "," v
             let assign = Exps.prt i4 e
             let next' = Exps.prt i4 next
             sprintf "%slet <%s> =%s%s%s%sin%s%s" indent vars nl assign nl indent nl next'
         | Case (caseExpr, alts) ->
-            let caseExpr = Exps.prt 0 caseExpr
+            let caseExpr = Exps.prt i4 caseExpr
             let alts =
                 List.fold(fun s a ->
                     match a with
@@ -182,7 +183,7 @@ and Exp =
                         let x = Alt.prt (i+4) a
                         sprintf "%s%s" s x
                     | x -> failwithf "not imple %A" x) "" alts
-            sprintf "%scase %s of%s%s%send" indent caseExpr nl alts indent
+            sprintf "%scase%s%s of%s%s%send" indent nl caseExpr nl alts indent
         | Receive (alts, after) ->
             let alts =
                 List.fold(fun s a ->

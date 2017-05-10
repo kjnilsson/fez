@@ -127,3 +127,12 @@ let hello_hello () =
     prt_msg(),
         prt_msg(),
             prt_msg()
+
+
+let yield_it x =
+    [
+        yield 1
+        if x > 5 then
+            yield x
+    ]
+

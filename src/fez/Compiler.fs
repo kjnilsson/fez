@@ -310,9 +310,13 @@ module Compiler =
             Some f
         else None
 
+    (* let seqPlay = *)
+    (*     Seq.ingt *)
+
     let (|ShimmedCall|_|) (f: FSharpMemberOrFunctionOrValue) =
         let modules =
             ["Microsoft.FSharp.Collections.ListModule"
+             "Microsoft.FSharp.Collections.SeqModule"
              "Microsoft.FSharp.Core.Operators"
              "Fez.Core"
             ]
@@ -379,7 +383,8 @@ module Compiler =
             lambda [argsVar] call |> constr, nm
         | callee, f, e -> //apply to named function (local)
             let name = f.LogicalName
-            (* printfn "translatecall %s %A %A" name argTypes exprs *)
+            let fname = f.FullName
+            (* printfn "translatecall %s %A %A" fname argTypes exprs *)
             // TODO this probably wont always work
             let funName = litAtom name
             let args, nm =

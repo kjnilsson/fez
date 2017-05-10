@@ -9,3 +9,5 @@ op_ComposeLeft(_g0,_f0) ->
 
 op_PipeLeft(F, A) -> F(A).
 op_PipeRight(A, F) -> F(A).
+
+seq({seq, _} = X) -> X.
