@@ -7,12 +7,30 @@
          rec_test/0,
          make_map2/0,
          make_map/0,
-         prt_something/2
+         prt_something/2,
+         rec_test2/0,
+         spawn_test/0,
+         send_test/0
         ]).
 
 -include_lib("test.hrl").
 
 -record(a_rec, {num :: integer()}).
+
+send_test() ->
+    P = self(),
+    P ! hi.
+
+rec_test2() ->
+    M = receive
+            {'Yes', _} = S -> S;
+            {'No'} -> "no"
+        after infinity -> true
+        end,
+    M ++ "hi".
+
+spawn_test() ->
+    spawn(fun () -> rec_test2()  end).
 
 prt_something(S, I) ->
     io:format("something ~s ~b~n", [S, I]).

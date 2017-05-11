@@ -7,7 +7,8 @@
          ofList/1,
          map/2,
          filter/2,
-         delay/1
+         delay/1,
+         collect/2
         ]).
 
 -type enumerator() :: {list, non_neg_integer(), list()}.
@@ -34,6 +35,12 @@ filter(Pred, Seq) ->
 
 delay(F) ->
     {seq, fun () -> {delay, F} end}.
+
+collect(F, Sources) ->
+    {seq, fun () -> {collect, F, seq(Sources)} end}.
+
+take(Num, Sources) ->
+    {seq, fun () -> {take, Num, seq(Sources)} end}.
 
 toList(Seq) ->
     enumerate(seq(Seq), []).
@@ -77,6 +84,20 @@ next({filter, P, GetE}) when is_function(GetE) ->
     next({filter, P, GetE()});
 next({filter, P, Enum}) ->
     do_filter(P, Enum);
+
+next({take, Num, {seq, Seq}}) when is_function(Seq) ->
+    next({take, Num, Seq()});
+next({take, 0, _Enum0}) ->
+    finished;
+next({take, Num, Enum0}) ->
+    case next(Enum0) of
+        finished ->
+            % TODO: throw
+            finished;
+        {Item, Enum} ->
+            {Item, {take, Num-1, Enum}}
+    end;
+
 next({append, first, Enum0, Seq2}) ->
     case next(Enum0) of
         finished ->
@@ -86,13 +107,28 @@ next({append, first, Enum0, Seq2}) ->
     end;
 next({append, second, Seq1Enum, Enum0}) ->
     case next(Enum0) of
-        finished ->
-            finished;
+        finished -> finished;
         {Item, Enum} ->
             {Item, {append, second, Seq1Enum, Enum}}
     end;
 next({delay, F}) ->
-    next(seq(F())).
+    next(seq(F()));
+next({collect, F, {seq, Seq}}) when is_function(Seq) ->
+    % add empty "current" list
+    next({collect, F, seq([]), Seq()});
+next({collect, F, Current0, Enum0}) ->
+    case next(Current0) of
+        finished ->
+            case next(Enum0) of
+                finished -> finished;
+                {Item, Enum} ->
+                    ItemsSeq = F(Item),
+                    next({collect, F, seq(ItemsSeq), Enum})
+            end;
+        {Item, Current} ->
+            {Item, {collect, F, Current, Enum0}}
+    end.
+
 
 do_filter(P, Enum0) ->
     case next(Enum0) of
@@ -133,6 +169,15 @@ lists_are_seqs_test() ->
     [1,2,3] = toList(delay(fun () -> [1,2,3] end)),
     [1,2] = toList(append([1], [2])),
     ok.
+
+collect_test() ->
+    [1, -1, 2, -2, 3, -3] = toList(collect(fun (X) -> [X, -X] end, [1,2,3])),
+    ok.
+
+take_test() ->
+    [1,2] = toList(take(2, [1,2,3])),
+    ok.
+
 
 
 -endif.

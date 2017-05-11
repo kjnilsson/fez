@@ -1,12 +1,30 @@
 module wip
 open Fez.Core
 
-let make_ints() =
-    [0 .. 5]
+(* let make_ints() = *)
+(*     [0 .. 5] *)
 
-let make_steps() =
-    [0 .. 2 .. 6]
+(* let make_steps() = *)
+(*     [0 .. 2 .. 6] *)
 
+(* let seq_expr () = *)
+(*     let (height, width) = (10, 10) *)
+(*     seq { for row in 0 .. width - 1 do *)
+(*              for col in 0 .. height - 1 do *)
+(*                yield (row, col, row*width + col) *)
+(*         } *)
+(*     |> Seq.toList *)
+
+let inner_fun (l : int list) =
+    let folder s a = s + a
+    List.fold folder 0 l
+
+(* let for_expr (nums : int list) = *)
+(*     [ *)
+(*     for n in nums do *)
+(*         printfn "squared %i" (n*n) *)
+(*         yield n*n *)
+(*     ] *)
 (* let yield_it x = *)
 (*     seq { *)
 (*         yield 1 *)

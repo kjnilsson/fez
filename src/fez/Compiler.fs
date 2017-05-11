@@ -626,17 +626,19 @@ module Compiler =
             let s, nm = processExpr nm second
             cerl.Seq (f, s) |> constr, nm
         | B.Lambda (IsUnitArg p, expr) ->
-            (* printfn "Lambda!! %A %A" p (p.FullType.ToString()) *)
             let unitName, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
             // wrap body in let so that unit arg is mapped to fez_unit
             let body = mkLet unitName fezUnit body |> constr
             cerl.Lambda ([], body) |> constr, nm
         | B.Lambda (p, expr) ->
-            (* printfn "Lambda! %A %A" p (p.FullType.ToString()) *)
             let v, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
-            cerl.Lambda ([v], body) |> constr, nm
+            // TODO is it really going to be safesafe to flatten all lambdas?
+            let l = cerl.Lambda ([v], body) |> constr
+                    |> flattenLambda []
+            l, nm
+        (* | B.TryFinally *)
         | x -> failwithf "not implemented %A" x
 
 

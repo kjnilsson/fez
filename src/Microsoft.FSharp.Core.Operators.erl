@@ -10,8 +10,9 @@ op_ComposeLeft(_g0,_f0) ->
 op_PipeLeft(F, A) -> F(A).
 op_PipeRight(A, F) -> F(A).
 
-op_Range(Start, Finish) when is_integer(Start)
-                             andalso is_integer(Finish) ->
+op_Range(Start, Finish)
+  when is_integer(Start)
+       andalso is_integer(Finish) ->
     lists:seq(Start, Finish).
 
 op_RangeStep(Start, Step, Finish)
@@ -21,4 +22,5 @@ op_RangeStep(Start, Step, Finish)
     lists:seq(Start, Finish, Step).
 
 seq({seq, _} = X) -> X;
-seq(X) when is_list(X) -> {seq, fun () -> {list, X} end}.
+seq(X) when is_list(X) ->
+    {seq, fun () -> {list, X} end}.

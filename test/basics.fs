@@ -33,6 +33,7 @@ let rec sum n =
     match n with
     | 0 -> 0
     | n -> sum (n-1) + n
+
 let isOneToFour x =
     match x with
     | x when x < 1 || x > 4 ->
@@ -141,3 +142,8 @@ let make_ints() =
 
 let make_steps() =
     [0 .. 2 .. 6]
+
+
+let inner_fun (l : int list) =
+    let folder s a = s + a
+    List.fold folder 0 l
