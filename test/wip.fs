@@ -1,6 +1,11 @@
 module wip
 open Fez.Core
 
+(* let add a b = a + b *)
+(* let addFive = add 5 *)
+(* let addSix x = addFive x + 1 *)
+(* let addSeven = add 2 >> addFive *)
+(* let addEight = add 3 << addFive *)
 (* let make_ints() = *)
 (*     [0 .. 5] *)
 
@@ -16,8 +21,39 @@ open Fez.Core
 (*     |> Seq.toList *)
 
 let inner_fun (l : int list) =
-    let folder s a = s + a
-    List.fold folder 0 l
+    let folder c s a = c + s + a
+    List.fold (folder 3) 0 l
+
+
+
+(* let echo x = x *)
+(* module Nested = *)
+(*     let echo x = x *)
+(*     module Nested2 = *)
+(*         let echo x = x *)
+
+(* type Test = *)
+(*     | Test with *)
+(*     static member prt (t: Test) = "test" *)
+
+(* type Test2 = *)
+(*     | Test2 *)
+(*     static member prt (t: Test2) = "test2" *)
+
+
+
+(* let nested_test () = *)
+(*     Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo *)
+
+let inner_rec l =
+    let rec filter acc =
+        function
+        | [] -> acc
+        | h :: tail when h > 5 ->
+            filter acc tail
+        | h :: tail ->
+            filter (h :: acc) tail
+    filter [] l
 
 (* let for_expr (nums : int list) = *)
 (*     [ *)

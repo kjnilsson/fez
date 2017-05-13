@@ -145,5 +145,15 @@ let make_steps() =
 
 
 let inner_fun (l : int list) =
-    let folder s a = s + a
-    List.fold folder 0 l
+    let folder c s a = c + s + a
+    List.fold (folder 3) 0 l
+
+let let_rec l =
+    let rec filter acc =
+        function
+        | [] -> List.rev acc
+        | h :: tail when h > 5 ->
+            filter acc tail
+        | h :: tail ->
+            filter (h :: acc) tail
+    filter [] l

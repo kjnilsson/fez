@@ -88,4 +88,7 @@ op_Range_test() ->
 
 
 inner_fun_test() ->
-    6 = basics:inner_fun([1,2,3]).
+    15 = basics:inner_fun([1,2,3]).
+
+let_rec_test() ->
+    [1,2,3,5] = basics:let_rec([1,2,3,5,8]).

@@ -206,6 +206,10 @@ and Exp =
             let f = Exps.prt i4 first
             let s = Exps.prt i4 second
             sprintf "%sdo%s%s%s%s" indent nl f nl s
+        | LetRec (funs, e) ->
+            let f = funs |> List.map (FunDef.prt i4) |> String.concat nl
+            let e = Exps.prt i4 e
+            sprintf "%sletrec%s%s%sin%s%s" indent nl f indent nl e
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =
@@ -222,18 +226,20 @@ and Exps =
             let exps =
                 expr
                 |> List.choose (function
-                                | Constr e -> Some (Exp.prt 0 e)
+                                | Constr e -> Some (Exp.prt (i+4) e)
                                 | _ -> None)
-            sprintf "%s<%s>" indent (String.concat "," exps)
+            let commaNl = "," + nl
+            sprintf "%s<%s%s>" indent nl (String.concat commaNl exps)
         | x -> failwithf "Exps.prt not impl: %A" x
 
 and FunDef = FunDef of Ann<Function> * Ann<Exp>
     with
-    static member prt (FunDef (def, expr)) =
+    static member prt ((Indent indent) as i) (FunDef (def, expr)) =
         match (def, expr) with
         | (Constr f, Constr e) ->
-            let fp = Function.prt 0 f
-            let ep = Exp.prt 4 e
+            let i4 = i+4
+            let fp = Function.prt i f
+            let ep = Exp.prt i4 e
             sprintf "%s =%s%s%s" fp nl ep nl
         | _ -> failwith "Ann not implemented"
 
@@ -251,7 +257,7 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
           yield ""
           yield "    attributes []" //TODO:
           for d in defs do
-              yield FunDef.prt d |> sprintf "%s"
+              yield FunDef.prt 0 d |> sprintf "%s"
           yield "end"
         ]
 

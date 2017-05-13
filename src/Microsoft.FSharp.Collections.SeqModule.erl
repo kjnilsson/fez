@@ -8,7 +8,8 @@
          map/2,
          filter/2,
          delay/1,
-         collect/2
+         collect/2,
+         take/2
         ]).
 
 -type enumerator() :: {list, non_neg_integer(), list()}.
