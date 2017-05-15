@@ -91,3 +91,11 @@ inner_fun_test() ->
 
 let_rec_test() ->
     [1,2,3,5] = basics:let_rec([1,2,3,5,8]).
+
+trait_call_test() ->
+    B = basics:'B.make'("hello"),
+    "hello" = basics:show(B).
+
+nested_module_test() ->
+    "test2" = basics:nested_test().
+

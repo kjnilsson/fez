@@ -6,6 +6,12 @@ open System.IO
 open Fez.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
+
+
+let writeCoreFile dir name text =
+    let path = Path.Combine(dir, name + ".core")
+    File.WriteAllText(path, text)
+
 [<EntryPoint>]
 let main argv =
     let sysCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
@@ -13,6 +19,7 @@ let main argv =
     match argv with
     | [|FullPath file|] ->
         let fileContents = File.ReadAllText file
+        let dir = Path.GetDirectoryName file
         let checker = FSharpChecker.Create(keepAssemblyContents = true)
         let options = projectOptions checker file
         let res = check checker options file fileContents
@@ -22,8 +29,8 @@ let main argv =
               (* failwithf "%A" decl *)
               let modules = processDecl decl
               (* printfn "final ast: %A" m *)
-              for m in modules do
-                  cerl.prt m |> printfn "%s"
+              for n, m in modules do
+                  cerl.prt m |> writeCoreFile dir n
         0
     | _ ->
         failwithf "Uknnown args %A" argv

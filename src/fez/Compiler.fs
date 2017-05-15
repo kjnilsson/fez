@@ -163,6 +163,9 @@ module Compiler =
     let boolPat tf = (cerl.Pat (cerl.PLit (cerl.LAtom (cerl.Atom tf))))
 
     let mkName (name : string) num =
+        // TODO do replacements better
+        let name = name
+                    .Replace(''', '_')
         if Char.IsUpper name.[0] then
             sprintf "%s%i" name num
         else
@@ -530,9 +533,16 @@ module Compiler =
             (* modCall erlang equals [left; right] |> constr, nm *)
         | B.Call (callee, f, _, argTypes, expressions) ->
             translateCall nm callee f argTypes expressions
-        | B.TraitCall (types, name, flags, someTypes, argTypes, expressions) ->
-            failwithf "traitcall %A %A %A %A %A %A" types name flags someTypes argTypes expressions
-            (* translateCall nm callee f argTypes expressions *)
+        | B.TraitCall (types, name, flags, someTypes, argTypes, args) ->
+            let args, nm = foldNames nm processExpr args
+            let fezCore = litAtom "Fez.Core" |> constr
+            let traitCall = litAtom "trait_call" |> constr
+            let traitCall = litAtom "trait_call" |> constr
+            let args =
+                let instance = args.[0]
+                let listArgs = cerl.List(cerl.L args) |> constr
+                [instance; litAtom name |> constr; listArgs]
+            modCall fezCore traitCall args |> constr, nm
         | B.Value v ->
             let v', nm = safeVar false nm v.LogicalName
             match Map.tryFind v' nm.Functions with
@@ -749,12 +759,13 @@ module Compiler =
             let nm = {nm with Functions = Map.merge (nm.Functions) fs}
             let e, nm = processExpr nm e
             cerl.LetRec (defs, e) |> constr, nm
-
+        | B.AddressOf e ->
+            processExpr nm e
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =
         | Fun of (cerl.Function * cerl.FunDef)
-        | Mod of cerl.Module list
+        | Mod of (string * cerl.Module) list
         | Skip
 
     let rec processModDecl ctx decl =
@@ -784,18 +795,19 @@ module Compiler =
             processDecl e |> Mod
             (* printfn "module decls %A"  declList *)
         | Entity(ent, declList)  ->
-            printfn "other entity %A %A" ent ent.IsValueType
+            (* printfn "other entity %A %A" ent ent.IsValueType *)
             Skip
         | MemberOrFunctionOrValue(x, _, _) ->
         (* printfn "cannot process %A" x.LogicalName *)
             Skip
-        | x -> failwithf "cannot process %A " x 
+        | x -> failwithf "cannot process %A " x
 
 
     and processDecl decl = [
       match decl with
       | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
-          let ctx = Ctx.init (ent.FullName)
+          let name = ent.FullName
+          let ctx = Ctx.init name
           let modDecls = List.map (processModDecl ctx) implFileDecls
           let (funs, funDefs) =
               modDecls
@@ -803,7 +815,7 @@ module Compiler =
                               | Fun (f, fd) -> Some(f, fd)
                               | _ -> None)
               |> List.unzip
-          yield cerl.Module (cerl.Atom ent.FullName, funs, [], funDefs)
+          yield name, cerl.Module (cerl.Atom ent.FullName, funs, [], funDefs)
           for md in modDecls do
               match md with
               | Mod decls -> yield! decls

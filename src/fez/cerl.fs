@@ -250,9 +250,10 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
     with
     static member prt (Module (Atom name, funs, attribs, defs)) =
         [ let indent = 11 + name.Length
+          yield sprintf "module '%s' [" name
           match funs with
           | f :: funs ->
-              yield Function.prt 0 f |> sprintf "module '%s' [%s" name
+              yield Function.prt 0 f
               for f in funs do
                   yield Function.prt indent f |> sprintf ",%s"
           | _ -> ()

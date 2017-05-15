@@ -157,3 +157,28 @@ let let_rec l =
         | h :: tail ->
             filter (h :: acc) tail
     filter [] l
+
+type B  = { label: string } with
+    static member show x = x.label
+    static member make x = {label = x}
+
+let inline show< ^T when ^T : (static member show : ^T -> string)> (x:^T) : string =
+   (^T : (static member show : ^T -> string) (x))
+
+
+let echo x = x
+module Nested =
+    let echo x = x
+    module Nested2 =
+        let echo x = x
+
+type Test =
+    | Test with
+    static member prt (t: Test) = "test"
+
+type Test2 =
+    | Test2
+    static member prt (t: Test2) = "test2"
+
+let nested_test () =
+    Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo

@@ -26,10 +26,11 @@ open Fez.Core
 
 type B  = { label: string } with
     static member show x = x.label
+    static member make x = {label = x}
 
 let inline show< ^T when ^T : (static member show : ^T -> string)> (x:^T) : string =
    (^T : (static member show : ^T -> string) (x))
-(*
+
 let echo x = x
 module Nested =
     let echo x = x
@@ -47,7 +48,7 @@ type Test2 =
 let nested_test () =
     Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo
 
-    *)
+
 (* let inner_rec l = *)
 (*     let rec filter acc = *)
 (*         function *)
