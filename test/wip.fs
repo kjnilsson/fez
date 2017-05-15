@@ -20,40 +20,43 @@ open Fez.Core
 (*         } *)
 (*     |> Seq.toList *)
 
-let inner_fun (l : int list) =
-    let folder c s a = c + s + a
-    List.fold (folder 3) 0 l
+(* let inner_fun (l : int list) = *)
+(*     let folder c s a = c + s + a *)
+(*     List.fold (folder 3) 0 l *)
 
+type B  = { label: string } with
+    static member show x = x.label
 
+let inline show< ^T when ^T : (static member show : ^T -> string)> (x:^T) : string =
+   (^T : (static member show : ^T -> string) (x))
+(*
+let echo x = x
+module Nested =
+    let echo x = x
+    module Nested2 =
+        let echo x = x
 
-(* let echo x = x *)
-(* module Nested = *)
-(*     let echo x = x *)
-(*     module Nested2 = *)
-(*         let echo x = x *)
+type Test =
+    | Test with
+    static member prt (t: Test) = "test"
 
-(* type Test = *)
-(*     | Test with *)
-(*     static member prt (t: Test) = "test" *)
+type Test2 =
+    | Test2
+    static member prt (t: Test2) = "test2"
 
-(* type Test2 = *)
-(*     | Test2 *)
-(*     static member prt (t: Test2) = "test2" *)
+let nested_test () =
+    Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo
 
-
-
-(* let nested_test () = *)
-(*     Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo *)
-
-let inner_rec l =
-    let rec filter acc =
-        function
-        | [] -> acc
-        | h :: tail when h > 5 ->
-            filter acc tail
-        | h :: tail ->
-            filter (h :: acc) tail
-    filter [] l
+    *)
+(* let inner_rec l = *)
+(*     let rec filter acc = *)
+(*         function *)
+(*         | [] -> acc *)
+(*         | h :: tail when h > 5 -> *)
+(*             filter acc tail *)
+(*         | h :: tail -> *)
+(*             filter (h :: acc) tail *)
+(*     filter [] l *)
 
 (* let for_expr (nums : int list) = *)
 (*     [ *)

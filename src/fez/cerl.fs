@@ -80,6 +80,9 @@ with
             let hds = List.map Pat.prt hds
             let tl = Pat.prt tl
             sprintf "[%s | %s]" (String.concat "," hds) tl
+        | PList (L(xs)) ->
+            let xs = List.map (Pat.prt) xs
+            sprintf "[%s]" (String.concat "," xs)
         | PAlias (Alias (v, p)) ->
             let p = Pat.prt p
             sprintf "%s = %s" v p

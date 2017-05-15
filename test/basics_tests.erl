@@ -8,23 +8,22 @@ flip_test() ->
     "therehi" = basics:flip(fun erlang:'++'/2, "hi", "there").
 
 pat_mat_test() ->
-    Some = 'Microsoft.FSharp.Core.FSharpOption`1.Some',
-    None = 'Microsoft.FSharp.Core.FSharpOption`1.None',
+    T = {'Microsoft.FSharp.Core.FSharp','Option`1'},
 
-    {Some, 1} = basics:try_head([1]),
-    {None} = basics:try_head([]),
+    {T, 'Some', 1} = basics:try_head([1]),
+    {T, 'None'} = basics:try_head([]),
 
-    {Some, 3} = basics:try_match_a_list([1, 2, 3, 4, 5]),
-    {None} = basics:try_match_a_list([1]),
+    {T, 'Some', 3} = basics:try_match_a_list([1, 2, 3, 4, 5]),
+    {T, 'None'} = basics:try_match_a_list([1]),
 
-    {Some, 1} = basics:fixed_len_list([1, 2]),
-    {Some, 4} = basics:fixed_len_list([99, 101, 97, 4]),
-    {None} = basics:fixed_len_list([1, 2, 1]).
+    {T, 'Some', 1} = basics:fixed_len_list([1, 2]),
+    {T, 'Some', 4} = basics:fixed_len_list([99, 101, 97, 4]),
+    {T, 'None'} = basics:fixed_len_list([1, 2, 1]).
 
 basic_records_test() ->
-    {'basics.person', "karl", 39} = P = basics:make_person("karl", 39),
+    {{'basics','person'}, "karl", 39} = P = basics:make_person("karl", 39),
     39 = basics:age(P),
-    {'basics.person', "karl", 40} = basics:have_birthday(P).
+    {{'basics', 'person'}, "karl", 40} = basics:have_birthday(P).
 
 basics_sum_test() ->
     6 = basics:sum(3),

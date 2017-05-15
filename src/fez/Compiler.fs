@@ -112,8 +112,6 @@ module Compiler =
             Some c
         else None
 
-    let mkUnionTag (t: FSharpType) (uc : FSharpUnionCase) =
-        t.TypeDefinition.FullName + "." + uc.Name
 
     (* let (|CaseName|) (c : FSharpUnionCase) = *)
     (*     c.CompiledName |> cerl.Atom *)
@@ -236,6 +234,44 @@ module Compiler =
 
     let funDef f (expr) =
         cerl.FunDef (cerl.Constr f, cerl.Constr expr)
+
+    let lAtomPat name =
+        cerl.PLit (cerl.LAtom (cerl.Atom name))
+
+    let mkType (t:FSharpType) wrap =
+        let ln = t.TypeDefinition.LogicalName
+        let fn = t.TypeDefinition.FullName
+        let fn = fn.Replace(ln, "").TrimEnd('.')
+        let m = fn |>  wrap
+        let t = ln |>  wrap
+        [m;t]
+
+    let mkTypeTag (t: FSharpType) =
+        cerl.Tuple (mkType t (litAtom >> constr))
+
+    let mkUnionTag (uc : FSharpUnionCase) =
+        uc.Name |> litAtom |> constr
+
+    let mkTypePat (t: FSharpType) =
+        let m = t.TypeDefinition.FullName |> lAtomPat
+        mkType t lAtomPat |> cerl.PTuple
+
+    let mkUnionPat (uc : FSharpUnionCase) =
+        uc.Name |> lAtomPat
+
+    let mkStructuralUnionCasePat (t: FSharpType) (uc: FSharpUnionCase) =
+        let typeTag = mkTypePat t
+        let caseTag = mkUnionPat uc
+        let fields =
+            uc.UnionCaseFields
+            |> Seq.map (fun cf -> cerl.PVar "_")
+            |> Seq.toList
+        cerl.PTuple (typeTag :: caseTag :: fields)
+
+    let trueExps = litAtom "true" |> constr
+    let falseExps = litAtom "false" |> constr
+    let mkAlt p g e =
+        cerl.Constr (cerl.Alt (cerl.Pat p, g, e))
 
     let annLAtom n = litAtom n |> constr
     let erlang = litAtom "erlang" |> constr
@@ -397,9 +433,16 @@ module Compiler =
             let call = modCall io format [arg; argsArg] |> constr
             // inspect string to see how many actual args there are?
             lambda [argsVar] call |> constr, nm
-        | callee, f, e -> //apply to named function
-            let name = f.LogicalName
-            let fname = f.FullName
+        | callee, f, e when f.EnclosingEntity.FullName = nm.Module
+                            || (f.EnclosingEntity.IsFSharpUnion
+                                || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
+            let ee = f.EnclosingEntity
+            let name =
+                if ee.IsFSharpUnion then
+                    //method on type rather than nested module
+                    ee.LogicalName + "." + f.LogicalName
+                else
+                    f.LogicalName
             let funName = litAtom name
             let args, nm =
                 exprs
@@ -410,6 +453,16 @@ module Compiler =
             let func = func |> cerl.Fun |> constr
             let app = apply func args
             constr app,nm
+        | None, f, _ -> // FSharpCore module call
+            let name = f.LogicalName
+            let eeFullName = f.EnclosingEntity.FullName
+            let m = litAtom eeFullName |> constr
+            let f = litAtom name |> constr
+            let args, nm = foldNames nm processExpr exprs
+            // remove fez_unit
+            // flatten any lambda args
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+            modCall m f args |> constr, nm
         | _, x, _ ->  failwithf "not implemented %A" x
 
     and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>)  expr =
@@ -465,16 +518,21 @@ module Compiler =
             let a1, nm = processExpr nm e
             let a2 = cerl.Lit (cerl.LNil) |> constr
             modCall erlang equals [a1; a2] |> constr, nm
-            //Cons cell without any name bindings
         | B.UnionCaseTest (e, t, uc) ->
-            let name = mkUnionTag t uc |> cerl.Atom
-            let left, nm = element nm 1 e
-            let right = cerl.Lit (cerl.LAtom name) |> constr
-            modCall erlang equals [left; right] |> constr, nm
-    // any other DUs turn them into {'CaseName\, _, _, _} patterns
+            let typeTag = mkTypeTag t
+            let caseTag = mkUnionTag uc
+            let pat1 = mkStructuralUnionCasePat t uc
+            let alt1 = mkAlt pat1 cerl.defaultGuard trueExps
+            let alt2 = mkAlt (cerl.PVar "_") cerl.defaultGuard falseExps
+            let e, ctx = processExpr nm e
+            cerl.Case(e, [alt1; alt2]) |> constr, ctx
+            (* let right = tag |> constr *)
+            (* modCall erlang equals [left; right] |> constr, nm *)
         | B.Call (callee, f, _, argTypes, expressions) ->
-            (* printfn "Call expr %A %A %A" expr (f.CurriedParameterGroups) expressions *)
             translateCall nm callee f argTypes expressions
+        | B.TraitCall (types, name, flags, someTypes, argTypes, expressions) ->
+            failwithf "traitcall %A %A %A %A %A %A" types name flags someTypes argTypes expressions
+            (* translateCall nm callee f argTypes expressions *)
         | B.Value v ->
             let v', nm = safeVar false nm v.LogicalName
             match Map.tryFind v' nm.Functions with
@@ -498,13 +556,10 @@ module Compiler =
             // cons should always generate exactly 2 args
             constr(cerl.List (cerl.LL([args.[0]], args.[1]))), nm
         | B.NewUnionCase(t, uc, argExprs) as e ->
-
-            (* inspectT t |> printfn "NewUnionCase %A %A" (uc.Name) *) 
-            let unionTag = mkUnionTag t uc |> litAtom |> constr
-            (* let unionTag = uc.FullName |> litAtom |> constr *)
+            let typeTag = mkTypeTag t |> constr
+            let caseTag = mkUnionTag uc
             let args, nm = foldNames nm processExpr argExprs
-            cerl.Tuple (unionTag :: args) |> constr, nm
-            (* failwithf "NewUnionCase not impl %A" e *)
+            cerl.Tuple (typeTag :: caseTag:: args) |> constr, nm
         | B.Let ((v, B.Call (_, (LogicalName "receive" as m), _t, [t], _)), expr) as r ->
             // generate basic structural case to for the DU type
             // then generate standard if then else
@@ -515,15 +570,8 @@ module Compiler =
             let alts =
                 cases
                 |> Seq.map (fun c ->
-                    (* let tag = cerl.PLit (cerl.LAtom (cerl.Atom c.FullName)) *)
-                    let tag = cerl.PLit (cerl.LAtom (cerl.Atom (mkUnionTag t c)))
-                    let fields =
-                        c.UnionCaseFields
-                        |> Seq.map (fun cf -> cerl.PVar "_")
-                        |> Seq.toList
-                    let pat = cerl.PTuple (tag :: fields) |> mkAliasP
-                    cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard, constr (cerl.Var alias)))
-                )
+                    let pat = mkStructuralUnionCasePat t c |> mkAliasP
+                    cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard, constr (cerl.Var alias))))
                 |> Seq.toList
             let infinity =
                 let expiry = litAtom "infinity" |> constr
@@ -565,8 +613,8 @@ module Compiler =
         | B.NewRecord (t, args) ->
             let args, nm = foldNames nm processExpr args
             //type to atom
-            let recordName =
-                litAtom t.TypeDefinition.FullName |> constr
+            let recordName = mkTypeTag t |> constr
+                (* litAtom t.TypeDefinition.FullName |> constr *)
             cerl.Tuple (recordName :: args) |> constr, nm
         | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
                          IsField "Head" fld) ->
@@ -580,14 +628,13 @@ module Compiler =
              let e, nm = processExpr nm value
              modCall erlang hd [e] |> constr, nm
         | B.UnionCaseGet(e, t, c, f) ->
-            (* printfn "v %A t %A c %A f %A" e t c.UnionCaseFields f *)
             // turn these into element/2 calls
             let idx =
                 c.UnionCaseFields
                 |> Seq.findIndex ((=) f)
             let element = litAtom "element" |> constr
             let e, nm = processExpr nm e
-            let idx = idx+2 |> cerl.LInt
+            let idx = idx + 3 |> cerl.LInt
             modCall erlang element [cerl.Lit idx |> constr; e] |> constr, nm
         | B.Coerce(a, e) ->
             processExpr nm e
@@ -705,56 +752,66 @@ module Compiler =
 
         | x -> failwithf "not implemented %A" x
 
+    type ModDecl =
+        | Fun of (cerl.Function * cerl.FunDef)
+        | Mod of cerl.Module list
+        | Skip
 
-    let processModDecl ctx decl =
+    let rec processModDecl ctx decl =
         (* printfn "decl %A" decl *)
         match decl with
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
-            (* printfn "memb %A" memb.EnclosingEntity.FullName *)
+            (* printfn "memb %s %A" memb.FullName memb.EnclosingEntity.LogicalName *)
+            let name =
+                if memb.EnclosingEntity.FullName = ctx.Module then
+                    memb.LogicalName
+                else
+                    // we're probably a member on a type
+                    // make qualified name
+                    sprintf "%s.%s" (memb.EnclosingEntity.LogicalName) memb.LogicalName
             let args, nm = foldNames ctx (safeVar true) ps
             let e, nm = processExpr ctx expr
             let l = lambda args e
             //TODO top level functions are unique so no need to prefix
-            let f, nm = mkFunction nm memb.LogicalName (List.length ps)
-            Some (f, funDef f l)
+            let f, nm = mkFunction nm name (List.length ps)
+            Fun (f, funDef f l)
         | Entity(ent, declList) when ent.IsFSharpRecord ->
-            None
+            Skip
         | Entity(ent, declList) when ent.IsFSharpUnion ->
-            None
-        | Entity(ent, declList) when ent.IsFSharpModule ->
+            Skip
+        | Entity(ent, declList) as e when ent.IsFSharpModule ->
+            processDecl e |> Mod
             (* printfn "module decls %A"  declList *)
-            None
+        | Entity(ent, declList)  ->
+            printfn "other entity %A %A" ent ent.IsValueType
+            Skip
         | MemberOrFunctionOrValue(x, _, _) ->
         (* printfn "cannot process %A" x.LogicalName *)
-            None
-        | x -> failwithf "cannot process %A" x
+            Skip
+        | x -> failwithf "cannot process %A " x 
 
 
-    // built in simple operations that aren't available in erlang
-    // are inlined as private functions
-    // this makes translation easier
-    // bonus: apply may be faster than modcall
-    // TODO: only inline those that are actually used
-    let defaultFunDefs =
-        [
-            (* cerl.op_ComposeRight *)
-            (* cerl.op_ComposeLeft *)
-        ]
-
-    let processDecl decl =
+    and processDecl decl = [
       match decl with
       | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
-          let ctx = Ctx.init (ent.LogicalName)
+          let ctx = Ctx.init (ent.FullName)
+          let modDecls = List.map (processModDecl ctx) implFileDecls
           let (funs, funDefs) =
-              implFileDecls
-              |> List.choose (processModDecl ctx)
+              modDecls
+              |> List.choose (function
+                              | Fun (f, fd) -> Some(f, fd)
+                              | _ -> None)
               |> List.unzip
-          cerl.Module (cerl.Atom ent.LogicalName, funs, [],
-                       funDefs @ defaultFunDefs)
+          yield cerl.Module (cerl.Atom ent.FullName, funs, [], funDefs)
+          for md in modDecls do
+              match md with
+              | Mod decls -> yield! decls
+              | _ -> ()
       | InitAction(expr) ->
           failwithf "Module values (InitActions) are not supported as there is no equivalent in erlang.\r\nMake it a function instead.\r\n%A" expr
       | Entity(ent, declList) ->
           failwithf "cannot process record %+A" ent.TryGetMembersFunctionsAndValues
       | x -> failwithf "cannot process %+A" x
+    ]
 

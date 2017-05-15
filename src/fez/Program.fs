@@ -20,9 +20,10 @@ let main argv =
         for implFile in res.AssemblyContents.ImplementationFiles do
           for decl in implFile.Declarations do
               (* failwithf "%A" decl *)
-              let m = processDecl decl
+              let modules = processDecl decl
               (* printfn "final ast: %A" m *)
-              cerl.prt m |> printfn "%s"
+              for m in modules do
+                  cerl.prt m |> printfn "%s"
         0
     | _ ->
         failwithf "Uknnown args %A" argv

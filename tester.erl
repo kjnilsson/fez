@@ -10,13 +10,27 @@
          prt_something/2,
          rec_test2/0,
          spawn_test/0,
-         send_test/0
+         send_test/0,
+         try_finally/1,
+         try_catch/1
         ]).
 
 -include_lib("test.hrl").
 
 -record(a_rec, {num :: integer()}).
 
+try_finally(F) ->
+    try F()
+    after
+        io:format("after")
+    end.
+
+try_catch(F) ->
+    try F()
+    catch
+        _:_ ->
+        io:format("after")
+    end.
 send_test() ->
     P = self(),
     P ! hi.
