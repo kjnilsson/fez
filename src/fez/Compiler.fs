@@ -63,11 +63,12 @@ module Util =
             "-r:" + fezCoreLib
         |]
 
-    let projectOptions (checker: FSharpChecker) file =
+    let projectOptions (checker: FSharpChecker) files =
         {ProjectFileName = "Test"
          ProjectFileNames = [||]
          OtherOptions =
-             [|"-o:Test.dll"; "-a"; file|]
+             [|"-o:Test.dll"; "-a"|]
+             ++ files
              ++ compilerArgs ()
          ReferencedProjects = [||]
          IsIncompleteTypeCheckEnvironment = false
@@ -137,10 +138,15 @@ module Compiler =
             Some e
         | _ -> None
 
-    let stripFezUnit =
-        function
-        | [IsFezUnit e] -> []
-        | args -> args
+    let rec stripFezUnit args = [
+        match args with
+        | IsFezUnit _ :: tail ->
+            yield! stripFezUnit tail
+        | a :: tail ->
+            yield a
+            yield! stripFezUnit tail
+        | [] -> ()
+    ]
 
     let filterUnitVars =
         List.choose (fun (x : FSharpMemberOrFunctionOrValue) ->
@@ -228,8 +234,16 @@ module Compiler =
     let lambda args expr =
         cerl.Lambda (args, expr)
 
+    let rec flattenLambda parms l =
+        match parms, l with
+        | _, cerl.Exp (cerl.Constr (cerl.Lambda ([v] , exps))) ->
+            flattenLambda (v :: parms) exps
+        | [], _ -> l
+        | _, _ ->
+            cerl.Exp (cerl.Constr (cerl.Lambda (List.rev parms, l)))
+
     let mkLet v a expr =
-        cerl.Let (([v], a), expr)
+        cerl.Let (([v], a), flattenLambda [] expr)
 
     let mkFunction ({Functions = funs} as ctx) name arity =
         let f = cerl.Function (cerl.Atom name, arity)
@@ -342,14 +356,6 @@ module Compiler =
     // flatten nested single parameter lambdas
     // this will reverse the arguments but that is typically ok for
     // a first class fun in erlang
-    let rec flattenLambda parms l =
-        match parms, l with
-        | _, cerl.Exp (cerl.Constr (cerl.Lambda ([v] , exps))) ->
-            flattenLambda (v :: parms) exps
-        | [], _ -> l
-        | _, _ ->
-            cerl.Exp (cerl.Constr (cerl.Lambda (List.rev parms, l)))
-
     let (|ExprType|_|) ts (e: FSharpExpr) =
         if e.Type.TypeDefinition.LogicalName = ts then Some e
         else None
@@ -441,7 +447,7 @@ module Compiler =
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
             let ee = f.EnclosingEntity
             let name =
-                if ee.IsFSharpUnion then
+                if ee.IsFSharpUnion || ee.IsFSharpRecord then
                     //method on type rather than nested module
                     ee.LogicalName + "." + f.LogicalName
                 else
@@ -450,7 +456,7 @@ module Compiler =
             let args, nm =
                 exprs
                 |> foldNames nm processExpr
-            let args = args |> stripFezUnit
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
             let numArgs = List.length args
             let func, nm = mkFunction nm name numArgs
             let func = func |> cerl.Fun |> constr
@@ -697,6 +703,7 @@ module Compiler =
             let missingArgs =
                 missingArgs
                 |> List.map (fun a -> cerl.Exp (cerl.Constr (cerl.Var a)))
+                |> stripFezUnit
             // if the target is not a plain value or a function we
             // may not be able to process it inline and thus need to wrap it
             // in a Let
@@ -705,15 +712,16 @@ module Compiler =
                 // we're cool the target is just a var or fun - we can inline
                 // TODO: literals?
                 let args, nm = foldNames nm processExpr args
-                let args = args @ missingArgs
+                let args = (args @ missingArgs) |> stripFezUnit
                 wrap <| (apply t args |> constr), nm
             | t, nm ->
+                let t = flattenLambda [] t
                 //the target is something more complex and needs to be
                 //wrapped in a Let
                 let name, nm = uniqueName nm
                 let app, nm =
                     let args, nm = foldNames nm processExpr args
-                    let args = args @ missingArgs
+                    let args = (args |> stripFezUnit) @ missingArgs
                     apply (varExps name) args |> constr, nm
                 mkLet name t app |> constr |> wrap, nm
         | B.Sequential(first, second) ->

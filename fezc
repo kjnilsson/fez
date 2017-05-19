@@ -8,7 +8,7 @@ filedir=$(dirname $1)
 filename=$(basename "$1")
 filename=${filename%.*}
 name=$filedir/$filename.core
-echo "compiling: $name"
+echo "compiling: $1"
 dotnet run -p src/fez/fez.fsproj $1
 # ./ce.escript fmt $name > $name
 # cat $name

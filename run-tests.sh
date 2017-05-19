@@ -1,4 +1,4 @@
 set -e
-./fezc ./test/basics.fs
-erlc -o ./ebin/ ./test/*.core
+./fezc ./test/Aether.fs ./test/aether_test.fs ./test/basics.fs
+erlc -o ./test ./test/*.core
 make tests

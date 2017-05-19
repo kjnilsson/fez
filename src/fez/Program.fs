@@ -16,12 +16,12 @@ let writeCoreFile dir name text =
 let main argv =
     let sysCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
     let sysPath = Path.GetDirectoryName(sysCoreLib)
-    match argv with
-    | [|FullPath file|] ->
+    let files = argv |> Array.map (|FullPath|)
+    let checker = FSharpChecker.Create(keepAssemblyContents = true)
+    let options = projectOptions checker files
+    for file in files do
         let fileContents = File.ReadAllText file
         let dir = Path.GetDirectoryName file
-        let checker = FSharpChecker.Create(keepAssemblyContents = true)
-        let options = projectOptions checker file
         let res = check checker options file fileContents
         let decs = res.AssemblyContents.ImplementationFiles.Head.Declarations
         for implFile in res.AssemblyContents.ImplementationFiles do
@@ -31,6 +31,4 @@ let main argv =
               (* printfn "final ast: %A" m *)
               for n, m in modules do
                   cerl.prt m |> writeCoreFile dir n
-        0
-    | _ ->
-        failwithf "Uknnown args %A" argv
+    0
