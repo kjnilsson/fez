@@ -1,0 +1,2 @@
+-module('Microsoft.FSharp.Core.OptionsModule').
+-compile(export_all).

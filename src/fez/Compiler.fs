@@ -156,7 +156,7 @@ module Compiler =
     let filterUnitVars =
         List.choose (fun (x : FSharpMemberOrFunctionOrValue) ->
             if x.FullName = "unitVar0" then None
-            else Some x)
+            else Some x.FullName)
 
     let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
         pgs
@@ -336,27 +336,9 @@ module Compiler =
         | :? int as i -> litInt i
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
-        | null -> //unit?
+        | null -> //unit
             litAtom "fez_unit" //Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
-
-    let groupPatterns groupBy patterns =
-        patterns
-        |> List.groupBy groupBy
-        |> List.map (fun (k, v) -> (k, List.map snd v))
-
-    let mergePatterns patterns =
-        (* printfn "grouped patterns %A" grouped *)
-        patterns
-        |> List.map (fun (k, vs) ->
-                let s = List.head vs
-                let rest = List.tail vs
-                k, List.fold (fun (ps, gs, ctxs)
-                               (p, g, ctx) ->
-                                    cerl.mergePat (ps, p),
-                                        cerl.mergeGuards (gs, g),
-                                            ctx)
-                           s rest)
 
     // flatten nested single parameter lambdas
     // this will reverse the arguments but that is typically ok for
@@ -423,21 +405,10 @@ module Compiler =
             // string length wont have any args
             // List.length has one arg - unit - ignoring it here
             modCall erlang length [arg] |> constr, nm
-        | None, LogicalName "length" & IsModuleMemberOn "StringModule" _, _ ->
-            let length = litAtom "length" |> constr
-            let args, nm = foldNames nm processExpr exprs
-            modCall erlang length args |> constr, nm
-        (* | None, IsModuleMemberOn "Microsoft.FSharp.Core.ListModule" name, _ -> // FSharpCore module call *)
-        | None, ShimmedCall f, _ -> // FSharpCore module call
-            let name = f.LogicalName
-            let eeFullName = f.EnclosingEntity.FullName
-            let m = litAtom eeFullName |> constr
-            let f = litAtom name |> constr
-            let args, nm = foldNames nm processExpr exprs
-            // remove fez_unit
-            // flatten any lambda args
-            let args = args |> stripFezUnit |> List.map (flattenLambda [])
-            modCall m f args |> constr, nm
+        (* | None, LogicalName "length" & IsModuleMemberOn "StringModule" _, _ -> *)
+        (*     let length = litAtom "length" |> constr *)
+        (*     let args, nm = foldNames nm processExpr exprs *)
+        (*     modCall erlang length args |> constr, nm *)
         | None, LogicalName "printfn" _, [e] ->
             let io = annLAtom "io"
             let format = annLAtom "format"
@@ -472,7 +443,7 @@ module Compiler =
             let func = func |> cerl.Fun |> constr
             let app = apply func args
             constr app,nm
-        | None, f, _ -> // FSharpCore module call
+        | None, f, _ -> // module call
             let name = f.LogicalName
             let eeFullName = f.EnclosingEntity.FullName
             let m = litAtom eeFullName |> constr

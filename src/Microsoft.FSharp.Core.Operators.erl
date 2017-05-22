@@ -28,3 +28,7 @@ seq(X) when is_list(X) ->
 string(X) ->
     % primitive ToString
     io:format("~p", [X]).
+
+fst(T) -> element(1, T).
+snd(T) -> element(2, T).
+
