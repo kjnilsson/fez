@@ -149,13 +149,17 @@ and Exp =
     | Try of Exps * (List<Var> * Exps) * (List<Var> * Exps) // ^ try expression
     | Receive of Ann<Alt> list * TimeOut      // ^ receive expression
     | Catch of Exps                 // ^ catch expression
+    | Noop of Exps                 //  not part of model - just for 
     with
     static member prt ((Indent indent) as i) expr =
         let i4 = i+4
+        let commaNl = sprintf ",%s" nl
         match expr with
         | Var v -> sprintf "%s%s" indent v
         | Lit lit ->
             Literal.prt lit |> sprintf "%s%s" indent
+        | Noop exps ->
+            Exps.prt i exps
         | Lambda (vars, exps) ->
             let expsp = Exps.prt (i+4) exps
             let varsp = String.concat "," vars
@@ -164,13 +168,13 @@ and Exp =
             sprintf "'%s'/%i" name arity
         | App (targetExps, args) ->
             let target = Exps.prt 0 targetExps
-            let argsp = args |> List.map (Exps.prt 0) |> String.concat ","
-            sprintf "%sapply %s (%s)" indent target argsp
+            (* let argsp = args |> List.map (Exps.prt 0) |> String.concat "," *)
+            let argsp = args |> List.map (Exps.prt i4) |> String.concat commaNl
+            sprintf "%sapply %s (%s%s)" indent target nl argsp
         | ModCall ((left, right), args) ->
             let leftExp = Exps.prt 0 left
             let rightExp = Exps.prt 0 right
-            let concStr = sprintf ",%s" nl
-            let argsp = args |> List.map (Exps.prt i4) |> String.concat concStr
+            let argsp = args |> List.map (Exps.prt i4) |> String.concat commaNl
             sprintf "%scall %s:%s(%s%s)" indent leftExp rightExp nl argsp
         | Let ((v, e), next) ->
             let vars = String.concat "," v

@@ -16,7 +16,7 @@ type RecordA =
 open Aether
 open Aether.Operators
 
-let test1() =
+let lens() =
 
     let a =
         { B = { Value = "Hello World!" } }
@@ -25,9 +25,11 @@ let test1() =
     let avalue_ =
         RecordA.B_ >-> RecordB.Value_
 
-    let a = Optic.set (RecordA.B_ >-> RecordB.Value_) "Goodbye World!" a
+
+    printfn "lens %A" avalue_
+    let s = Optic.set avalue_ "Goodbye World!"
     (* Get the value using an existing lens *)
-    Optic.get avalue_ a
+    Optic.get avalue_ (s a)
 
     (* or... *)
 

@@ -138,7 +138,12 @@ module Compiler =
             Some e
         | _ -> None
 
-    let rec stripFezUnit args = [
+    let rec stripFezUnit args =
+        match args with
+        | [IsFezUnit _] -> []
+        | args -> args
+
+    let rec stripFezUnits args = [
         match args with
         | IsFezUnit _ :: tail ->
             yield! stripFezUnit tail
@@ -561,6 +566,7 @@ module Compiler =
             mapConst o |> constr, nm
         | B.NewTuple (fsType, args) ->
             let args, nm = foldNames nm processExpr args
+            let args = List.map (flattenLambda []) args
             cerl.Tuple args |> constr, nm
         | B.TupleGet (fsType, idx, e) ->
             let idx = idx+1
@@ -603,6 +609,7 @@ module Compiler =
             let ass = flattenLambda [] ass
             let v', nm = safeVar true nm v.LogicalName
             let next, nm = processExpr nm expr
+            (* printfn "next %A" next *)
             mkLet v' ass next |> constr, nm
         | B.IfThenElse (fi, neht, esle) as ite ->
             //plain if then else without decision tree
@@ -686,7 +693,6 @@ module Compiler =
             let args = [arg1; cerl.List (cerl.L args) |> constr]
             modCall io format args |> constr, nm
         | B.Application (target, _types, args) ->
-            (* printfn "app target: %A args: %A" target args *)
             let cp = match target with
                      | B.Value f ->
                         let c =
@@ -696,9 +702,13 @@ module Compiler =
                      | _ -> 0
 
             let missingArgs, nm = foldNames nm (fun nm _ -> uniqueName nm) [1..cp]
+            printfn "app target: %A args: %A cp  %A missing %A" target args cp missingArgs
+
             let wrap e =
                 if cp > 0 then
-                    lambda missingArgs e |> constr
+                    (* printfn "lambda args %A" missingArgs *)
+                    ///TODO wrap in let to avoid flattening?
+                    cerl.Noop (lambda missingArgs e |> constr) |> constr
                 else e
             let missingArgs =
                 missingArgs
@@ -713,15 +723,17 @@ module Compiler =
                 // TODO: literals?
                 let args, nm = foldNames nm processExpr args
                 let args = (args @ missingArgs) |> stripFezUnit
+                printfn "target: %A args %A" t args
                 wrap <| (apply t args |> constr), nm
             | t, nm ->
+                printfn "target: %A" t
                 let t = flattenLambda [] t
                 //the target is something more complex and needs to be
                 //wrapped in a Let
                 let name, nm = uniqueName nm
                 let app, nm =
                     let args, nm = foldNames nm processExpr args
-                    let args = (args |> stripFezUnit) @ missingArgs
+                    (* let args = (args |> stripFezUnit) @ missingArgs *)
                     apply (varExps name) args |> constr, nm
                 mkLet name t app |> constr |> wrap, nm
         | B.Sequential(first, second) ->

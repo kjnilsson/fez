@@ -38,7 +38,7 @@ module Compose =
             fun ((g1, s1): Lens<'a,'b>) ->
                 (fun a -> g2 (g1 a)),
                 (fun c a -> s1 (s2 c (g1 a)) a) : Lens<'a,'c>
-
+(*
         static member (>->) (Lens, (g2, s2): Prism<'b,'c>) =
             fun ((g1, s1): Lens<'a,'b>) ->
                 (fun a -> g2 (g1 a)),
@@ -54,6 +54,7 @@ module Compose =
                 (fun a -> f (g a)),
                 (fun c a -> s (t c) a) : Prism<'a,'c>
 
+                *)
     /// Compose a lens with an optic or morphism.
     let inline lens l o =
         (Lens >-> o) l

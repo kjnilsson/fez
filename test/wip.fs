@@ -20,33 +20,43 @@ open Fez.Core
 (*         } *)
 (*     |> Seq.toList *)
 
+(* let mkAdd n (add: int -> int -> int) = *)
+(*     (1* let rec add = *1) *)
+(*     (1*     fun x -> fun n -> n + x *1) *)
+(*     add n *)
+
+let call =
+    let adders = (fun a -> a + 5), (fun a b -> a + b)
+    let add = snd adders
+    add 4 5
+
 (* let inner_fun (l : int list) = *)
 (*     let folder c s a = c + s + a *)
 (*     List.fold (folder 3) 0 l *)
 
-type B  = { label: string } with
-    static member show x = x.label
-    static member make x = {label = x}
+(* type B  = { label: string } with *)
+(*     static member show x = x.label *)
+(*     static member make x = {label = x} *)
 
-let inline show< ^T when ^T : (static member show : ^T -> string)> (x:^T) : string =
-   (^T : (static member show : ^T -> string) (x))
+(* let inline show< ^T when ^T : (static member show : ^T -> string)> (x:^T) : string = *)
+(*    (^T : (static member show : ^T -> string) (x)) *)
 
-let echo x = x
-module Nested =
-    let echo x = x
-    module Nested2 =
-        let echo x = x
+(* let echo x = x *)
+(* module Nested = *)
+(*     let echo x = x *)
+(*     module Nested2 = *)
+(*         let echo x = x *)
 
-type Test =
-    | Test with
-    static member prt (t: Test) = "test"
+(* type Test = *)
+(*     | Test with *)
+(*     static member prt (t: Test) = "test" *)
 
-type Test2 =
-    | Test2
-    static member prt (t: Test2) = "test2"
+(* type Test2 = *)
+(*     | Test2 *)
+(*     static member prt (t: Test2) = "test2" *)
 
-let nested_test () =
-    Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo
+(* let nested_test () = *)
+(*     Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo *)
 
 
 (* let inner_rec l = *)
