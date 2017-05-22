@@ -99,3 +99,6 @@ trait_call_test() ->
 nested_module_test() ->
     "test2" = basics:nested_test().
 
+try_with() ->
+    "banana" = basics:try_with_test().
+

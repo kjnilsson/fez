@@ -182,3 +182,13 @@ type Test2 =
 
 let nested_test () =
     Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo
+
+exception MyEx of string
+
+let try_with_test () =
+    try
+        raise (MyEx "banana")
+        "99"
+    with
+    | :? MyEx as e ->
+        e.Data0

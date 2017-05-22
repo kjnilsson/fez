@@ -218,6 +218,9 @@ and Exp =
             let f = funs |> List.map (FunDef.prt i4) |> String.concat nl
             let e = Exps.prt i4 e
             sprintf "%sletrec%s%s%sin%s%s" indent nl f indent nl e
+        | Catch e ->
+            let e = Exps.prt i4 e
+            sprintf "%scatch%s%s" indent nl e
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =

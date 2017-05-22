@@ -30,6 +30,25 @@ let call =
     let add = snd adders
     add 4 5
 
+exception MyEx of string
+
+let try_with_test () =
+    try
+        raise (MyEx "banana")
+        "99"
+        (* failwith "banana" *)
+    with
+    | :? MyEx as e ->
+        e.Data0
+
+let box_unbox (x: int) : int =
+    let o = box x
+    unbox o
+
+let op() =
+    let x = Some 1
+    Option.get x
+
 (* let inner_fun (l : int list) = *)
 (*     let folder c s a = c + s + a *)
 (*     List.fold (folder 3) 0 l *)

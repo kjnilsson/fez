@@ -301,6 +301,10 @@ module Compiler =
     let equals = litAtom "=:=" |> constr
     let fez = litAtom "fez" |> constr
 
+    let put k v =
+        let put = litAtom "put" |> constr
+        modCall erlang put [k; v]
+
     let (|Intr2Erl|_|) (f: FSharpMemberOrFunctionOrValue) =
         match f.LogicalName with
         | "op_Multiply" -> Some "*"
@@ -357,21 +361,6 @@ module Compiler =
             Some f
         else None
 
-    (* let seqPlay = *)
-    (*     Seq.ingt *)
-
-    let (|ShimmedCall|_|) (f: FSharpMemberOrFunctionOrValue) =
-        let modules =
-            ["Microsoft.FSharp.Collections.ListModule"
-             "Microsoft.FSharp.Collections.SeqModule"
-             "Microsoft.FSharp.Core.Operators"
-             "Fez.Core"
-            ]
-        if f.IsModuleValueOrMember &&
-           List.contains f.EnclosingEntity.FullName modules then
-            Some f
-        else None
-
     let (|LogicalName|_|) t (f: FSharpMemberOrFunctionOrValue) =
         if f.LogicalName = t then Some ()
         else None
@@ -405,19 +394,6 @@ module Compiler =
             // string length wont have any args
             // List.length has one arg - unit - ignoring it here
             modCall erlang length [arg] |> constr, nm
-        (* | None, LogicalName "length" & IsModuleMemberOn "StringModule" _, _ -> *)
-        (*     let length = litAtom "length" |> constr *)
-        (*     let args, nm = foldNames nm processExpr exprs *)
-        (*     modCall erlang length args |> constr, nm *)
-        | None, LogicalName "printfn" _, [e] ->
-            let io = annLAtom "io"
-            let format = annLAtom "format"
-            let arg, nm = processExpr nm e
-            let argsVar, nm = safeVar true nm "fez"
-            let argsArg = cerl.Var argsVar |> constr
-            let call = modCall io format [arg; argsArg] |> constr
-            // inspect string to see how many actual args there are?
-            lambda [argsVar] call |> constr, nm
         | callee, f, e when f.EnclosingEntity.FullName = nm.Module
                             || (f.EnclosingEntity.IsFSharpUnion
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
@@ -516,14 +492,11 @@ module Compiler =
             let alt2 = mkAlt (cerl.PVar "_") cerl.defaultGuard falseExps
             let e, ctx = processExpr nm e
             cerl.Case(e, [alt1; alt2]) |> constr, ctx
-            (* let right = tag |> constr *)
-            (* modCall erlang equals [left; right] |> constr, nm *)
         | B.Call (callee, f, _, argTypes, expressions) ->
             translateCall nm callee f argTypes expressions
         | B.TraitCall (types, name, flags, someTypes, argTypes, args) ->
             let args, nm = foldNames nm processExpr args
             let fezCore = litAtom "Fez.Core" |> constr
-            let traitCall = litAtom "trait_call" |> constr
             let traitCall = litAtom "trait_call" |> constr
             let args =
                 let instance = args.[0]
@@ -585,11 +558,9 @@ module Compiler =
             let ass = flattenLambda [] ass
             let v', nm = safeVar true nm v.LogicalName
             let next, nm = processExpr nm expr
-            (* printfn "next %A" next *)
             mkLet v' ass next |> constr, nm
         | B.IfThenElse (fi, neht, esle) as ite ->
             //plain if then else without decision tree
-            (* printfn "if %A\r\nthen %A\r\nelse %A" fi neht esle *)
             let ifExps, nm = processExpr nm fi
             let thenExpr, nm = processExpr nm neht
             let elseExpr, nm = processExpr nm esle
@@ -597,7 +568,6 @@ module Compiler =
             let a2 = altExpr (boolPat "false", cerl.defaultGuard, elseExpr)
             cerl.Case(ifExps, [a1;a2]) |> constr, nm
         | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
-            (* printfn "ite %A" ite *)
             let l = List.mapi (fun i x -> i, x) branches |> Map
             let e, nm = processDT nm l ite
             constr e, nm
@@ -613,7 +583,6 @@ module Compiler =
             let args, nm = foldNames nm processExpr args
             //type to atom
             let recordName = mkTypeTag t |> constr
-                (* litAtom t.TypeDefinition.FullName |> constr *)
             cerl.Tuple (recordName :: args) |> constr, nm
         | B.UnionCaseGet(value, IsFSharpList fsType, IsCase "Cons" uCas,
                          IsField "Head" fld) ->
@@ -678,12 +647,11 @@ module Compiler =
                      | _ -> 0
 
             let missingArgs, nm = foldNames nm (fun nm _ -> uniqueName nm) [1..cp]
-            printfn "app target: %A args: %A cp  %A missing %A" target args cp missingArgs
+            (* printfn "app target: %A args: %A cp  %A missing %A" target args cp missingArgs *)
 
             let wrap e =
                 if cp > 0 then
-                    (* printfn "lambda args %A" missingArgs *)
-                    ///TODO wrap in let to avoid flattening?
+                    // wrap in Noop to avoid being flattened later
                     cerl.Noop (lambda missingArgs e |> constr) |> constr
                 else e
             let missingArgs =
@@ -696,20 +664,16 @@ module Compiler =
             match processExpr nm target with
             | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _ )) as t, nm ->
                 // we're cool the target is just a var or fun - we can inline
-                // TODO: literals?
                 let args, nm = foldNames nm processExpr args
                 let args = (args @ missingArgs) |> stripFezUnit
-                printfn "target: %A args %A" t args
                 wrap <| (apply t args |> constr), nm
             | t, nm ->
-                printfn "target: %A" t
                 let t = flattenLambda [] t
                 //the target is something more complex and needs to be
                 //wrapped in a Let
                 let name, nm = uniqueName nm
                 let app, nm =
                     let args, nm = foldNames nm processExpr args
-                    (* let args = (args |> stripFezUnit) @ missingArgs *)
                     apply (varExps name) args |> constr, nm
                 mkLet name t app |> constr |> wrap, nm
         | B.Sequential(first, second) ->
@@ -757,6 +721,19 @@ module Compiler =
             cerl.LetRec (defs, e) |> constr, nm
         | B.AddressOf e ->
             processExpr nm e
+        | B.TryWith(tryExpr, f1, e2, f2, caughtExpr) ->
+            let tryExps, nm = processExpr nm tryExpr
+            let catchExps = cerl.Catch tryExps |> constr
+            let caughtName, nm = safeVar true nm f2.LogicalName
+            let p = put (litAtom "last_exception" |> constr) (constr (cerl.Var caughtName))
+            let caughtExps, nm = processExpr nm caughtExpr
+            let e = cerl.Seq (constr p, caughtExps) |> constr
+            mkLet caughtName catchExps e |> constr, nm
+            (* failwithf "e1 %A f1 %A e2 %A f2 %A e3 %A" tryExpr f1 e2 f2 caughtExpr *)
+        | B.TypeTest (t, valExpr) ->
+            let tag = mkTypeTag t |> constr
+            let ele, nm = element nm 1 valExpr
+            modCall erlang equals [tag; ele] |> constr, nm
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =
@@ -765,7 +742,7 @@ module Compiler =
         | Skip
 
     let rec processModDecl ctx decl =
-        (* printfn "decl %A" decl *)
+        printfn "decl %A" decl
         match decl with
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->

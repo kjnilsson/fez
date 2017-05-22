@@ -32,3 +32,15 @@ string(X) ->
 fst(T) -> element(1, T).
 snd(T) -> element(2, T).
 
+box(X) -> X.
+unbox(X) -> X.
+
+failwith(M) ->
+    throw({exception, M}).
+
+reraise() ->
+    % pick exception out of process dictionary
+    case get(last_exception) of
+        undefined -> throw(reraise);
+        E -> throw(E)
+    end.
