@@ -24,3 +24,7 @@ op_RangeStep(Start, Step, Finish)
 seq({seq, _} = X) -> X;
 seq(X) when is_list(X) ->
     {seq, fun () -> {list, X} end}.
+
+string(X) ->
+    % primitive ToString
+    io:format("~p", [X]).

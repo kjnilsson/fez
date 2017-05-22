@@ -156,7 +156,7 @@ module Compiler =
     let filterUnitVars =
         List.choose (fun (x : FSharpMemberOrFunctionOrValue) ->
             if x.FullName = "unitVar0" then None
-            else Some x.FullName)
+            else Some x)
 
     let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
         pgs
@@ -451,6 +451,9 @@ module Compiler =
                             || (f.EnclosingEntity.IsFSharpUnion
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
             let ee = f.EnclosingEntity
+            let exprs = match callee with
+                        | Some e -> e :: exprs
+                        | None -> exprs
             let name =
                 if ee.IsFSharpUnion || ee.IsFSharpRecord then
                     //method on type rather than nested module
@@ -458,6 +461,8 @@ module Compiler =
                 else
                     f.LogicalName
             let funName = litAtom name
+            //add callee as first arg if method dispatch
+            //best effort only
             let args, nm =
                 exprs
                 |> foldNames nm processExpr

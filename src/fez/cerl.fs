@@ -202,9 +202,10 @@ and Exp =
             let t = TimeOut.prt i after
             sprintf "%sreceive%s%s%s" indent nl alts t
          | Tuple vals ->
-             List.map (Exps.prt 0) vals
-             |> String.concat ","
-             |> sprintf "%s{%s}" indent
+             let ts =
+                 List.map (Exps.prt (i+1)) vals
+                 |> String.concat commaNl
+             sprintf "%s{%s}" indent (ts.TrimStart())
         | List l ->
             let p = Exps.prt 0
             ExprList<Exps>.prt p l
