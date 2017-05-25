@@ -95,6 +95,14 @@ module Compiler =
             Some t.TypeDefinition
         else None
 
+    let (|IsFSharpOption|_|) =
+        function
+        | TypeDefinition tdef as t
+            when tdef.TryFullName =
+                Some "Microsoft.FSharp.Core.FSharpOption`1" ->
+                    Some t
+        | _ -> None
+
     let (|IsFSharpList|_|) =
         function
         | TypeDefinition tdef as t
@@ -433,6 +441,13 @@ module Compiler =
 
     and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>)  expr =
         match expr with
+        | B.Let ((v, e), expr) ->
+            // ignore names introduced in the variable assignment expression
+            let ass, _ = processExpr nm e
+            let ass = flattenLambda [] ass
+            let v', nm = safeVar true nm v.LogicalName
+            let next, nm = processDT nm expsLookup expr
+            mkLet v' ass (constr next), nm
         | B.IfThenElse(fi, neht, esle) ->
             let ifExps, nm = processExpr nm fi
             let thenExpr, nm = processDT nm expsLookup neht
@@ -484,6 +499,14 @@ module Compiler =
             let a1, nm = processExpr nm e
             let a2 = cerl.Lit (cerl.LNil) |> constr
             modCall erlang equals [a1; a2] |> constr, nm
+        | B.UnionCaseTest (e, IsFSharpOption t, IsCase "Some" c) ->
+            let a1, nm = processExpr nm e
+            let a2 = litAtom "undefined" |> constr
+            modCall erlang notEquals [a1; a2] |> constr, nm
+        | B.UnionCaseTest (e, IsFSharpOption t, IsCase "None" c) ->
+            let a1, nm = processExpr nm e
+            let a2 = litAtom "undefined" |> constr
+            modCall erlang equals [a1; a2] |> constr, nm
         | B.UnionCaseTest (e, t, uc) ->
             let typeTag = mkTypeTag t
             let caseTag = mkUnionTag uc
@@ -526,7 +549,12 @@ module Compiler =
             let args, nm = foldNames nm processExpr e
             // cons should always generate exactly 2 args
             constr(cerl.List (cerl.LL([args.[0]], args.[1]))), nm
+        | B.NewUnionCase (IsFSharpOption t, IsCase "Some" c, [e]) ->
+            processExpr nm e
+        | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) ->
+            constr (litAtom "undefined"), nm
         | B.NewUnionCase(t, uc, argExprs) as e ->
+            printfn "t %A" t.TypeDefinition.FullName
             let typeTag = mkTypeTag t |> constr
             let caseTag = mkUnionTag uc
             let args, nm = foldNames nm processExpr argExprs
@@ -552,7 +580,7 @@ module Compiler =
             let n, nm = safeVar true nm v.LogicalName
             let letExps, nm = processExpr nm expr
             mkLet n receive letExps |> constr, nm
-        | B.Let ((v, e), expr) as l ->
+        | B.Let ((v, e), expr) ->
             // ignore names introduced in the variable assignment expression
             let ass, _ = processExpr nm e
             let ass = flattenLambda [] ass
@@ -567,7 +595,7 @@ module Compiler =
             let a1 = altExpr (boolPat "true", cerl.defaultGuard, thenExpr)
             let a2 = altExpr (boolPat "false", cerl.defaultGuard, elseExpr)
             cerl.Case(ifExps, [a1;a2]) |> constr, nm
-        | B.DecisionTree (B.IfThenElse (fi, _, _) as ite, branches) as tree ->
+        | B.DecisionTree (ite, branches) as tree ->
             let l = List.mapi (fun i x -> i, x) branches |> Map
             let e, nm = processDT nm l ite
             constr e, nm
@@ -595,6 +623,10 @@ module Compiler =
              let hd = litAtom "tl" |> constr
              let e, nm = processExpr nm value
              modCall erlang hd [e] |> constr, nm
+        | B.UnionCaseGet (value, IsFSharpOption t, IsCase "Some" c, fld) ->
+            processExpr nm value
+        (* | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) -> *)
+        (*     constr (litAtom "undefined"), nm *)
         | B.UnionCaseGet(e, t, c, f) ->
             // turn these into element/2 calls
             let idx =
@@ -734,6 +766,9 @@ module Compiler =
             let tag = mkTypeTag t |> constr
             let ele, nm = element nm 1 valExpr
             modCall erlang equals [tag; ele] |> constr, nm
+        | B.TypeLambda(_, e) ->
+            let e,nm = processExpr nm e
+            cerl.Noop (lambda [] e |> constr) |> constr, nm
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =

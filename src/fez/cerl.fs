@@ -170,11 +170,19 @@ and Exp =
             let target = Exps.prt 0 targetExps
             (* let argsp = args |> List.map (Exps.prt 0) |> String.concat "," *)
             let argsp = args |> List.map (Exps.prt i4) |> String.concat commaNl
+            let nl =
+                match args with
+                | [] -> ""
+                | _ -> nl
             sprintf "%sapply %s (%s%s)" indent target nl argsp
         | ModCall ((left, right), args) ->
             let leftExp = Exps.prt 0 left
             let rightExp = Exps.prt 0 right
             let argsp = args |> List.map (Exps.prt i4) |> String.concat commaNl
+            let nl =
+                match args with
+                | [] -> ""
+                | _ -> nl
             sprintf "%scall %s:%s(%s%s)" indent leftExp rightExp nl argsp
         | Let ((v, e), next) ->
             let vars = String.concat "," v

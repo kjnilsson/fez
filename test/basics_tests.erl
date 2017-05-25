@@ -8,17 +8,17 @@ flip_test() ->
     "therehi" = basics:flip(fun erlang:'++'/2, "hi", "there").
 
 pat_mat_test() ->
-    T = {'Microsoft.FSharp.Core.FSharp','Option`1'},
+    % T = {'Microsoft.FSharp.Core.FSharp','Option`1'},
 
-    {T, 'Some', 1} = basics:try_head([1]),
-    {T, 'None'} = basics:try_head([]),
+    1 = basics:try_head([1]),
+    undefined = basics:try_head([]),
 
-    {T, 'Some', 3} = basics:try_match_a_list([1, 2, 3, 4, 5]),
-    {T, 'None'} = basics:try_match_a_list([1]),
+    3 = basics:try_match_a_list([1, 2, 3, 4, 5]),
+    undefined = basics:try_match_a_list([1]),
 
-    {T, 'Some', 1} = basics:fixed_len_list([1, 2]),
-    {T, 'Some', 4} = basics:fixed_len_list([99, 101, 97, 4]),
-    {T, 'None'} = basics:fixed_len_list([1, 2, 1]).
+    1 = basics:fixed_len_list([1, 2]),
+    4 = basics:fixed_len_list([99, 101, 97, 4]),
+    undefined = basics:fixed_len_list([1, 2, 1]).
 
 basic_records_test() ->
     {{'basics','person'}, "karl", 39} = P = basics:make_person("karl", 39),
@@ -99,6 +99,12 @@ trait_call_test() ->
 nested_module_test() ->
     "test2" = basics:nested_test().
 
-try_with() ->
+try_with_test() ->
     "banana" = basics:try_with_test().
 
+map_test() ->
+    Empty = basics:empty_map(),
+    NonEmpty = basics:non_empty_map(),
+    "banana" = basics:map_test(Empty),
+    "there" = basics:map_test(NonEmpty),
+    ok.

@@ -192,3 +192,16 @@ let try_with_test () =
     with
     | :? MyEx as e ->
         e.Data0
+
+let (|Item|_|) = Map.tryFind
+
+let empty_map () =
+    Map.empty
+
+let non_empty_map() =
+    empty_map() |> Map.add "hi" "there"
+
+let map_test m =
+    match m with
+    | Item "hi" v -> v
+    | _ -> "banana"

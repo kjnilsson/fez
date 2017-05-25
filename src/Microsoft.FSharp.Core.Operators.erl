@@ -1,11 +1,12 @@
 -module('Microsoft.FSharp.Core.Operators').
 -compile(export_all).
+-compile({no_auto_import,['not'/1]}).
 
-op_ComposeRight(_f0,_g0) ->
-    fun (_x0) -> _g0 (_f0 (_x0)) end.
+op_ComposeRight(F,G) ->
+    fun (X) -> G (F (X)) end.
 
-op_ComposeLeft(_g0,_f0) ->
-        fun (_x0) -> _g0 (_f0 (_x0)) end.
+op_ComposeLeft(G, F) ->
+        fun (X) -> G (F (X)) end.
 
 op_PipeLeft(F, A) -> F(A).
 op_PipeRight(A, F) -> F(A).
@@ -21,13 +22,22 @@ op_RangeStep(Start, Step, Finish)
        andalso is_integer(Finish) ->
     lists:seq(Start, Finish, Step).
 
+op_Append(L1, L2) ->
+    L1 ++ L2.
+
+id(X) -> X.
+
+ignore(_X) -> ok.
+
+'not'(B) -> not B.
+
 seq({seq, _} = X) -> X;
 seq(X) when is_list(X) ->
     {seq, fun () -> {list, X} end}.
 
 string(X) ->
     % primitive ToString
-    io:format("~p", [X]).
+    io_lib:format("~p", [X]).
 
 fst(T) -> element(1, T).
 snd(T) -> element(2, T).
@@ -37,6 +47,9 @@ unbox(X) -> X.
 
 failwith(M) ->
     throw({exception, M}).
+
+raise(E) ->
+    throw(E).
 
 reraise() ->
     % pick exception out of process dictionary

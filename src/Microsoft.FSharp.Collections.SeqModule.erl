@@ -16,7 +16,6 @@
 
 -type seq() :: {seq, GetEnumerator :: fun(() -> enumerator())}.
 
-
 -export_type([seq/0]).
 
 empty() ->
@@ -54,6 +53,8 @@ seq(L) when is_list(L) ->
     {seq, fun() -> {list, L} end};
 seq({seq, _} = Seq) ->
     Seq.
+
+%%% ------- internal -------
 
 enumerate({seq, Seq}, Acc) ->
     enumerate(Seq(), Acc);
