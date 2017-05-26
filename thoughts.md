@@ -56,7 +56,7 @@ inteface?). We _could_ implement something like the old school erlang
 `behaviour_info/1` function.
 
 
-## Discriminated Unions
+## Discriminated Unions (IMPLEMENTED)
 
 These could simply be translated into tagged tuples.
 

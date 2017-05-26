@@ -13,7 +13,6 @@ spawn(F) -> erlang:spawn(F).
             end
     end.
 
-
 trait_call(Instance, Function, Args) ->
     % try to get the type info out of the type instance
     {Mod, Type} = element(1, Instance),
