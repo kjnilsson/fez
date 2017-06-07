@@ -2,7 +2,6 @@
 deps
 *.o
 *.beam
-*.core
 *.plt
 erl_crash.dump
 ebin

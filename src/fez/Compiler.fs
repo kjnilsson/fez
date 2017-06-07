@@ -352,6 +352,12 @@ module Compiler =
             litAtom "fez_unit" //Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
 
+    let ioLibFormat nm str args =
+        let io = annLAtom "io_lib"
+        let format = annLAtom "format"
+        let arg1 = mapConst str |> constr
+        let args = [arg1; cerl.List (cerl.L args) |> constr]
+        modCall io format args |> constr, nm
     // flatten nested single parameter lambdas
     // this will reverse the arguments but that is typically ok for
     // a first class fun in erlang
@@ -402,6 +408,10 @@ module Compiler =
             // string length wont have any args
             // List.length has one arg - unit - ignoring it here
             modCall erlang length [arg] |> constr, nm
+        | Some callee, LogicalName "get_Message"
+                       & (IsMemberOn "Exception" _ ), _ ->
+            let arg, nm = processExpr nm callee
+            ioLibFormat nm "~p" [arg]
         | callee, f, e when f.EnclosingEntity.FullName = nm.Module
                             || (f.EnclosingEntity.IsFSharpUnion
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
@@ -625,8 +635,6 @@ module Compiler =
              modCall erlang hd [e] |> constr, nm
         | B.UnionCaseGet (value, IsFSharpOption t, IsCase "Some" c, fld) ->
             processExpr nm value
-        (* | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) -> *)
-        (*     constr (litAtom "undefined"), nm *)
         | B.UnionCaseGet(e, t, c, f) ->
             // turn these into element/2 calls
             let idx =

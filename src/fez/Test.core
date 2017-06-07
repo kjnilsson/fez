@@ -1,0 +1,8 @@
+module 'Test' ['square'/1]
+    attributes []
+'square'/1 =
+    fun (_x) ->
+        call 'erlang':'*'
+        (_x,_x)
+
+end
