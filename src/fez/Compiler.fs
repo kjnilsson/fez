@@ -738,21 +738,19 @@ module Compiler =
             let funDef nm (m : FSharpMemberOrFunctionOrValue, e : FSharpExpr) =
                 //TODO do we need to use a safe name?
                 let name, nm = safeVar true nm m.LogicalName
-                // let recs appear to be unflattened
+                //let recs appear to be unflattened
                 //to find numargs we need to process the expr
-                //then flatten then take the number of lamnda args
+                //then flatten then take the number of lambda args
                 //we have to do it out of order to ensure the function name
                 //is processed before the body so processing again after
-                let numArgs, l =
-                    let e, nm = processExpr nm e
-                    let e = e |> flattenLambda []
-                    match e with
-                    | cerl.Exp (cerl.Constr (cerl.Lambda (args , exps)) as l) ->
-                        List.length args, l
-                    | _ -> failwith "unexpected letrec args"
-                let f, nm = mkFunction nm name numArgs
                 let e, nm = processExpr nm e
                 let e = e |> flattenLambda []
+                let numArgs, l =
+                    match e with
+                    | cerl.Exp (cerl.Constr (cerl.Lambda (args, exps)) as l) ->
+                        List.length args, l
+                    | args -> failwithf "unexpected letrec args %A" args
+                let f, nm = mkFunction nm name numArgs
                 funDef f (unconstr e), nm
 
             let defs, {Functions = fs} = foldNames nm funDef funs
@@ -775,8 +773,10 @@ module Compiler =
             let ele, nm = element nm 1 valExpr
             modCall erlang equals [tag; ele] |> constr, nm
         | B.TypeLambda(_, e) ->
-            let e,nm = processExpr nm e
-            cerl.Noop (lambda [] e |> constr) |> constr, nm
+            let e, nm = processExpr nm e
+            e, nm
+            // why did we need this to be a Noop?
+            (* cerl.Noop (lambda [] e |> constr) |> constr, nm *)
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =
@@ -785,7 +785,7 @@ module Compiler =
         | Skip
 
     let rec processModDecl ctx decl =
-        printfn "decl %A" decl
+        (* printfn "decl %A" decl *)
         match decl with
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
