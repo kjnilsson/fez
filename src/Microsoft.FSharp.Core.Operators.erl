@@ -22,6 +22,9 @@ op_RangeStep(Start, Step, Finish)
        andalso is_integer(Finish) ->
     lists:seq(Start, Finish, Step).
 
+op_Modulus(X, Y) ->
+    X rem Y.
+
 op_Append(L1, L2) ->
     L1 ++ L2.
 

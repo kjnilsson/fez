@@ -31,13 +31,24 @@ filter(Pred, L) ->
 find(Pred, L) ->
     head(lists:dropwhile(fun (I) -> not Pred(I) end, L)).
 
-
 head([H | _]) -> H.
-map(F, L) -> lists:map(F, L).
-sort(L) -> lists:sort(L).
-last(L) -> lists:last(L).
+
+map(F, L) ->
+    lists:map(F, L).
+
+sort(L) ->
+    lists:sort(L).
+
+last(L) ->
+    lists:last(L).
+
 fold(F, S, L) ->
     lists:foldl(fun (E, Acc) -> F(Acc, E) end, S, L).
-rev(L) -> lists:reverse(L).
+
+rev(L) ->
+    lists:reverse(L).
+
+sum(L) ->
+    lists:sum(L).
 
 

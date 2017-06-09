@@ -205,3 +205,9 @@ let map_test m =
     match m with
     | Item "hi" v -> v
     | _ -> "banana"
+
+let tryF f =
+    try
+        f ()
+    finally
+        printfn "finally"

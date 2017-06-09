@@ -108,3 +108,6 @@ map_test() ->
     "banana" = basics:map_test(Empty),
     "there" = basics:map_test(NonEmpty),
     ok.
+
+try_finally_test() ->
+    ok = wip:tryF(fun () -> ok end).

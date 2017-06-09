@@ -244,7 +244,7 @@ and Exp =
             let suce = Exps.prt i4 suce
             let cvars = String.concat "," catchvals
             let ce = Exps.prt i4 catche
-            sprintf "%stry%s%s%sof <%s> ->%s%s%scatch <%s> ->%s%s" indent nl e indent vars nl suce indent cvars nl ce
+            sprintf "%stry%s%s%s%sof <%s> ->%s%s%s%scatch <%s> ->%s%s" indent nl e nl indent vars nl suce nl indent cvars nl ce
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =
