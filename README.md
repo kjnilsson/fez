@@ -53,7 +53,7 @@ To run the tests:
 
 ### How can I help?
 
-Try it! Read [thoughts.md](https://github.com/kjnilsson/fez/blob/HEAD/throughts.md)
+Try it! Read [thoughts.md](https://github.com/kjnilsson/fez/blob/HEAD/thoughts.md)
 and raise issues with the smallest possible repro program bearing in mind that the current
 status is little more than a proof of concept and soooooooo many fundamental parts
 are not yet implemented.
