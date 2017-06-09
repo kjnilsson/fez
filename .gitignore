@@ -3,6 +3,7 @@ deps
 *.o
 *.beam
 *.plt
+test/*.core
 erl_crash.dump
 ebin
 rel/example_project

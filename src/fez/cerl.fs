@@ -175,6 +175,15 @@ and Exp =
                 | [] -> ""
                 | _ -> nl
             sprintf "%sapply %s (%s%s)" indent target nl argsp
+        | Op (Atom op, args) ->
+            (* let target = Exps.prt 0 op *)
+            (* let argsp = args |> List.map (Exps.prt 0) |> String.concat "," *)
+            let argsp = args |> List.map (Exps.prt i4) |> String.concat commaNl
+            let nl =
+                match args with
+                | [] -> ""
+                | _ -> nl
+            sprintf "%sprimop '%s' (%s%s)" indent op nl argsp
         | ModCall ((left, right), args) ->
             let leftExp = Exps.prt 0 left
             let rightExp = Exps.prt 0 right
@@ -229,6 +238,13 @@ and Exp =
         | Catch e ->
             let e = Exps.prt i4 e
             sprintf "%scatch%s%s" indent nl e
+        | Try (e, (sucvals, suce), (catchvals, catche)) ->
+            let vars = String.concat "," sucvals
+            let e = Exps.prt i4 e
+            let suce = Exps.prt i4 suce
+            let cvars = String.concat "," catchvals
+            let ce = Exps.prt i4 catche
+            sprintf "%stry%s%s%sof <%s> ->%s%s%scatch <%s> ->%s%s" indent nl e indent vars nl suce indent cvars nl ce
         | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =

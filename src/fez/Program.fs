@@ -28,7 +28,7 @@ let main argv =
           for decl in implFile.Declarations do
               (* failwithf "%A" decl *)
               let modules = processDecl decl
-              (* printfn "final ast: %A" m *)
               for n, m in modules do
+                  (* printfn "final ast: %A" m *)
                   cerl.prt m |> writeCoreFile dir n
     0

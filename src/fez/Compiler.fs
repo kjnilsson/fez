@@ -313,6 +313,20 @@ module Compiler =
         let put = litAtom "put" |> constr
         modCall erlang put [k; v]
 
+    let mkTryAfter ctx e after =
+        let sucVal, ctx = uniqueName ctx
+        let sucExps = cerl.Seq (after, constr (cerl.Var sucVal)) |> constr
+        let ofs = [sucVal], sucExps
+        let n1, ctx = uniqueName ctx
+        let n2, ctx = uniqueName ctx
+        let n3, ctx = uniqueName ctx
+        let reRaise = cerl.Op (cerl.Atom "raise",
+                               [constr (cerl.Var n3); constr (cerl.Var n2)])
+        let afterExps = cerl.Seq (after, constr reRaise) |> constr
+        let catch = [n1;n2;n3], afterExps
+        cerl.Try (e, ofs, catch) |> constr, ctx
+
+
     let (|Intr2Erl|_|) (f: FSharpMemberOrFunctionOrValue) =
         match f.LogicalName with
         | "op_Multiply" -> Some "*"
@@ -564,7 +578,7 @@ module Compiler =
         | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) ->
             constr (litAtom "undefined"), nm
         | B.NewUnionCase(t, uc, argExprs) as e ->
-            printfn "t %A" t.TypeDefinition.FullName
+            (* printfn "t %A" t.TypeDefinition.FullName *)
             let typeTag = mkTypeTag t |> constr
             let caseTag = mkUnionTag uc
             let args, nm = foldNames nm processExpr argExprs
@@ -655,7 +669,11 @@ module Compiler =
                                         // should be a fold so we can use all Exps
                                         (* | cerl.Exps ae -> Some ae *)
                                         | _ -> None)
-            cerl.Exps (cerl.Constr expss), nm
+            match expss with
+            | [e] ->
+                cerl.Exp e, nm
+            | _ ->
+                cerl.Exps (cerl.Constr expss), nm
         // horrendously specific match to intercept printfn and sprintf
         | B.Application (B.Let ((_, B.Call (None, (LogicalName "printfn" | LogicalName "sprintf" as p), _, _,
                                             [B.Coerce (_, B.NewObject (_, _, [B.Const (:? string as str, _)]))])), _letBody),
@@ -743,14 +761,16 @@ module Compiler =
                 //then flatten then take the number of lambda args
                 //we have to do it out of order to ensure the function name
                 //is processed before the body so processing again after
-                let e, nm = processExpr nm e
-                let e = e |> flattenLambda []
                 let numArgs, l =
+                    let e, nm = processExpr nm e
+                    let e = e |> flattenLambda []
                     match e with
                     | cerl.Exp (cerl.Constr (cerl.Lambda (args, exps)) as l) ->
                         List.length args, l
                     | args -> failwithf "unexpected letrec args %A" args
                 let f, nm = mkFunction nm name numArgs
+                let e, nm = processExpr nm e
+                let e = e |> flattenLambda []
                 funDef f (unconstr e), nm
 
             let defs, {Functions = fs} = foldNames nm funDef funs
@@ -768,6 +788,10 @@ module Compiler =
             let e = cerl.Seq (constr p, caughtExps) |> constr
             mkLet caughtName catchExps e |> constr, nm
             (* failwithf "e1 %A f1 %A e2 %A f2 %A e3 %A" tryExpr f1 e2 f2 caughtExpr *)
+        | B.TryFinally(attempt, after) ->
+            let att, nm = processExpr nm attempt
+            let after, nm = processExpr nm after
+            mkTryAfter nm att after
         | B.TypeTest (t, valExpr) ->
             let tag = mkTypeTag t |> constr
             let ele, nm = element nm 1 valExpr
