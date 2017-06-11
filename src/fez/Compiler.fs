@@ -163,13 +163,16 @@ module Compiler =
 
     let filterUnitVars =
         List.choose (fun (x : FSharpMemberOrFunctionOrValue) ->
-            if x.FullName = "unitVar0" then None
+            if x.FullName.StartsWith("unitVar") then None
             else Some x.FullName)
 
     let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
-        pgs
-        |> List.fold List.append []
-        |> filterUnitVars
+        let ps = pgs |> List.fold List.append []
+        match ps with
+        | [x] when x.FullName.StartsWith("unitVar") ->
+            []
+        | xs ->
+            xs |> List.map (fun x -> x.FullName)
 
     let inspectT (t: FSharpType) =
         t.TypeDefinition.Namespace,
@@ -401,6 +404,13 @@ module Compiler =
         if f.ToString() = "type Microsoft.FSharp.Core.unit" then Some f
         else None
 
+    let traitCall name (args : cerl.Exps list) =
+        let fezCore = litAtom "Fez.Core" |> constr
+        let traitCall = litAtom "trait_call" |> constr
+        let instance = args.[0]
+        let listArgs = cerl.List(cerl.L args) |> constr
+        modCall fezCore traitCall [instance; litAtom name |> constr; listArgs]
+
     let rec translateCall nm callee
                           (f : FSharpMemberOrFunctionOrValue)
                           (argTypes: FSharpType list)
@@ -461,7 +471,30 @@ module Compiler =
             // flatten any lambda args
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
             modCall m f args |> constr, nm
-        | _, x, _ ->  failwithf "not implemented %A" x
+        | Some o, f, _ ->
+            // attempt dispatch on object member by adding the "dispatchee"
+            // as the first argument to the function
+            let name = f.LogicalName
+            let eeFullName = f.EnclosingEntity.FullName
+            let m = litAtom eeFullName |> constr
+            let f = litAtom name |> constr
+            let args, nm = foldNames nm processExpr (o :: exprs)
+            // remove fez_unit
+            // flatten any lambda args
+            let stripFezUnit args =
+                // first arg is the dispatch object
+                // so we need special version here
+                match args with
+                | [o; IsFezUnit _] -> [o]
+                | args -> args
+
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+            // use trait call here as it will use the embedded type info
+            // to dispatch the call to the right function
+            // Else we'd need a function of format: 'Module:InterfaceType.Member'
+            traitCall name args |> constr, nm
+        | x ->
+            failwithf "not implemented %A" x
 
     and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>)  expr =
         match expr with
@@ -543,13 +576,8 @@ module Compiler =
             translateCall nm callee f argTypes expressions
         | B.TraitCall (types, name, flags, someTypes, argTypes, args) ->
             let args, nm = foldNames nm processExpr args
-            let fezCore = litAtom "Fez.Core" |> constr
-            let traitCall = litAtom "trait_call" |> constr
-            let args =
-                let instance = args.[0]
-                let listArgs = cerl.List(cerl.L args) |> constr
-                [instance; litAtom name |> constr; listArgs]
-            modCall fezCore traitCall args |> constr, nm
+            traitCall name args |> constr, nm
+            (* modCall fezCore traitCall args |> constr, nm *)
         | B.Value v ->
             let v', nm = safeVar false nm v.LogicalName
             match Map.tryFind v' nm.Functions with
@@ -578,7 +606,6 @@ module Compiler =
         | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) ->
             constr (litAtom "undefined"), nm
         | B.NewUnionCase(t, uc, argExprs) as e ->
-            (* printfn "t %A" t.TypeDefinition.FullName *)
             let typeTag = mkTypeTag t |> constr
             let caseTag = mkUnionTag uc
             let args, nm = foldNames nm processExpr argExprs
@@ -661,7 +688,6 @@ module Compiler =
         | B.Coerce(a, e) ->
             processExpr nm e
         | B.NewObject(IsCtor m, types, exprs) ->
-            (* printfn "m %A" m.CompiledName *)
             let expss, nm = foldNames nm processExpr exprs
             let expss = expss
                         |> List.choose (function
@@ -705,7 +731,6 @@ module Compiler =
                      | _ -> 0
 
             let missingArgs, nm = foldNames nm (fun nm _ -> uniqueName nm) [1..cp]
-            (* printfn "app target: %A args: %A cp  %A missing %A" target args cp missingArgs *)
 
             let wrap e =
                 if cp > 0 then
@@ -745,12 +770,9 @@ module Compiler =
             let body = mkLet unitName fezUnit body |> constr
             cerl.Lambda ([], body) |> constr, nm
         | B.Lambda (p, expr) ->
-            (* printfn "Lambda params %A %A" p (p.CurriedParameterGroups) *)
             let v, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
-            // TODO is it really going to be safesafe to flatten all lambdas?
             let l = cerl.Lambda ([v], body) |> constr
-                    (* |> flattenLambda [] *)
             l, nm
         | B.LetRec(funs, e) ->
             let funDef nm (m : FSharpMemberOrFunctionOrValue, e : FSharpExpr) =
@@ -792,7 +814,17 @@ module Compiler =
             let att, nm = processExpr nm attempt
             let after, nm = processExpr nm after
             mkTryAfter nm att after
+        | B.TypeTest (t, valExpr) when t.TypeDefinition.IsInterface ->
+            (*
+              FSharp type tuples (records and unions) don't carry information
+              about which interfaces they implement only {Module, TypeName}.
+              If we just erase typetest we can later attempt to dispatch to the
+              the 'Type.IntefaceMethod' using the `trait_call` mechanism.
+              *)
+            trueExps, nm
         | B.TypeTest (t, valExpr) ->
+                (* when t.TypeDefinition.IsFSharpRecord || t.TypeDefinition.IsFSharpUnion -> *)
+            //  attempt tuple type test on any other type
             let tag = mkTypeTag t |> constr
             let ele, nm = element nm 1 valExpr
             modCall erlang equals [tag; ele] |> constr, nm
@@ -813,7 +845,6 @@ module Compiler =
         match decl with
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
-            (* printfn "memb %s %A" memb.FullName memb.EnclosingEntity.LogicalName *)
             let name =
                 if memb.EnclosingEntity.FullName = ctx.Module then
                     memb.LogicalName
@@ -821,6 +852,12 @@ module Compiler =
                     // we're probably a member on a type
                     // make qualified name
                     sprintf "%s.%s" (memb.EnclosingEntity.LogicalName) memb.LogicalName
+            let ps =
+                match ps with
+                | [o; x] when memb.IsMember && memb.IsInstanceMember ->
+                    //remove unit on member call
+                    [o]
+                | _ -> ps
             let args, nm = foldNames ctx (safeVar true) ps
             let e, nm = processExpr ctx expr
             let l = lambda args e
@@ -833,12 +870,9 @@ module Compiler =
             Skip
         | Entity(ent, declList) as e when ent.IsFSharpModule ->
             processDecl e |> Mod
-            (* printfn "module decls %A"  declList *)
         | Entity(ent, declList)  ->
-            (* printfn "other entity %A %A" ent ent.IsValueType *)
             Skip
         | MemberOrFunctionOrValue(x, _, _) ->
-        (* printfn "cannot process %A" x.LogicalName *)
             Skip
         | x -> failwithf "cannot process %A " x
 

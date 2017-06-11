@@ -110,4 +110,7 @@ map_test() ->
     ok.
 
 try_finally_test() ->
-    ok = wip:tryF(fun () -> ok end).
+    ok = basics:tryF(fun () -> ok end).
+
+interface_test() ->
+    "O" = basics:interfaces().

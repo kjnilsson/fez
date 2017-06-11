@@ -211,3 +211,17 @@ let tryF f =
         f ()
     finally
         printfn "finally"
+
+type IPrt =
+    abstract member Prt: unit ->  string
+
+type Obj =
+    | O
+    interface System.IDisposable with
+        member x.Dispose() =  printfn "dispose"
+    interface IPrt with
+        member x.Prt() = "O"
+
+let interfaces () =
+    use o = O
+    (o :> IPrt).Prt()
