@@ -16,9 +16,9 @@ concat(L1, L2) ->
 contains(I, L) ->
     lists:member(I, L).
 
-distinct(L) ->
-    % TODO: probably not quite the same
-    lists:usort(L).
+distinct([]) -> [];
+distinct([First|Rest]) ->
+    [First | [El || El <- distinct(Rest), El /= First]].
 
 empty() -> [].
 

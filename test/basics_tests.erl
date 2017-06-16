@@ -63,7 +63,26 @@ list_module_test() ->
     [2,3,4] = basics:addOneToAll([1,2,3]),
     6 = basics:foldTest([1,2,3]),
     6 = basics:foldTest2([1,2,3]),
-    [1,2,3] = basics:sort([3,1,2]).
+    [1,2,3] = basics:sort([3,1,2]),
+    [1,2,3] = basics:uniquify([1,2,2,3]),
+    [1,2,4,3] = basics:uniquify([1,1,2,2,2,4,3,4]).
+
+string_module_test() ->
+    "a,b" = basics:strConcat(",", ["a","b"]),
+    true = basics:hasAs("has_an_A"),
+    true = basics:hasAs("has_many_AAA"),
+    false = basics:hasAs("has_an_a"),
+    true = basics:allAs("AAAA"),
+    false = basics:allAs("AAbAA"),
+    "AAA" = basics:strToAs("abc"),
+    "AAAAA" = basics:strToAs("abcde"),
+    "AAAAAAAA" = basics:times8("A"),
+    "ABCABCABCABCABCABCABCABC" = basics:times8("ABC"),
+    % "ABC" = basics:toUpper("abc"), // needs System.Char implemented
+    % "abc" = basics:toLower("ABC"), // needs System.Char implemented
+    "__bcccdddd" = basics:removeFirstTwo("abbcccdddd"),
+    "ab________" = basics:removeAfterTwo("abbcccdddd"),
+    "ABCABCABC" = basics:repeatIndexTimes(3, "ABC").
 
 disciminated_union_test() ->
     TestDU = basics:makeDU(101),

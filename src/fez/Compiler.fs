@@ -239,6 +239,9 @@ module Compiler =
     let litInt i =
         cerl.Lit (cerl.LInt i)
 
+    let litChar s =
+        cerl.Lit (cerl.LChar s)
+
     let litString s =
         cerl.Lit (cerl.LString s)
 
@@ -404,16 +407,9 @@ module Compiler =
     let mapConst (o : obj) (t: FSharpType) =
         let td = t.TypeDefinition
         match o with
-        | o when t.TypeDefinition.IsEnum ->
-            // turn enums into atoms using their case name
-            let f = td.FSharpFields
-                    |> Seq.find (fun f ->
-                        match f.LiteralValue with
-                        | Some v -> v = o
-                        | _ -> false)
-            litAtom (f.Name)
         | :? int as i -> litInt (int64 i)
         | :? int64 as i -> litInt i
+        | :? char as c -> litChar c
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
         | null -> //unit
