@@ -63,9 +63,9 @@ list_module_test() ->
     [2,3,4] = basics:addOneToAll([1,2,3]),
     6 = basics:foldTest([1,2,3]),
     6 = basics:foldTest2([1,2,3]),
-    [1,2,3] = basics:sort([3,1,2]).
-    [1,2,3] = basics:uniquify([1,2,2,3])
-    [1,2,4,3] = basics:uniquify([1,1,2,2,2,4,3,4])
+    [1,2,3] = basics:sort([3,1,2]),
+    [1,2,3] = basics:uniquify([1,2,2,3]),
+    [1,2,4,3] = basics:uniquify([1,1,2,2,2,4,3,4]).
 
 string_module_test() ->
     "a,b" = basics:strConcat(",", ["a","b"]),
