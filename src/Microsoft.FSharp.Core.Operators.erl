@@ -28,6 +28,12 @@ op_Modulus(X, Y) ->
 op_Append(L1, L2) ->
     L1 ++ L2.
 
+op_GreaterThanOrEqual(L1, L2) ->
+    L1 >= L2.
+
+op_LessThanOrEqual(L1, L2) ->
+    L1 =< L2.
+
 id(X) -> X.
 
 ignore(_X) -> ok.
