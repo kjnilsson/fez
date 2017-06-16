@@ -238,6 +238,9 @@ module Compiler =
     let litInt i =
         cerl.Lit (cerl.LInt i)
 
+    let litChar s =
+        cerl.Lit (cerl.LChar s)
+
     let litString s =
         cerl.Lit (cerl.LString s)
 
@@ -363,6 +366,7 @@ module Compiler =
     let mapConst (o : obj) =
         match o with
         | :? int as i -> litInt i
+        | :? char as c -> litChar c
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
         | null -> //unit
