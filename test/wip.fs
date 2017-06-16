@@ -13,6 +13,53 @@ open Fez.Core
 (*     |> List.choose (fun x -> if x % 3 = 0 then Some (x * 10) else None) *)
 (*     |> List.sum *)
 
+(*
+ erlang terms:
+     * cases with no values are lowercased and interpreted as atoms
+     * cases with one value are interpreted as the value
+     * cases with more than one value are interpreted as tuples
+ *)
+
+[<ErlangTerm>]
+type TimeUnit =
+    | Second
+    | Millisecond
+    | Microsecond
+    | Nanosecond
+    | Native
+    | Perf_counter
+    | Integer of int //erased to value
+    | SomeTuple of int * string //erased to tuple
+
+[<ModCall("os", "system_time")>]
+let os_system_time (opt : TimeUnit) =
+    0L //dummy
+
+let now () =
+    os_system_time(Second),
+    os_system_time(Integer 4)
+
+let erlangTermRoundtrip () =
+
+
+let estuff =
+    function
+    | Second -> "second"
+    | Integer i -> sprintf "%i" i
+    | SomeTuple (i, s) -> sprintf "%i %s" i s
+    | _ -> "def"
+
+(* [<ModCall("erlang", "round")>] *)
+(* let erlang_round (n: float) = *)
+(*     0L *)
+
+(* let t = *)
+(*     "hey"B *)
+
+
+(* type MyType = int * string *)
+
+(*
 type IPrt =
     abstract member Prt: unit ->  string
 
@@ -27,6 +74,7 @@ let bah () =
     use o = O
     (o :> IPrt).Prt()
 
+*)
     (*
 exception SomeEx of string * int
 

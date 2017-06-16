@@ -19,6 +19,7 @@ module Util =
     let (++) = Array.append
     let run = Async.RunSynchronously
     let (|Item|_|) = Map.tryFind
+    let (|ToList|) = Seq.toList
 
     let (|FileExists|_|) f path =
         let path = f path
@@ -292,15 +293,6 @@ module Compiler =
     let mkUnionPat (uc : FSharpUnionCase) =
         uc.Name |> lAtomPat
 
-    let mkStructuralUnionCasePat (t: FSharpType) (uc: FSharpUnionCase) =
-        let typeTag = mkTypePat t
-        let caseTag = mkUnionPat uc
-        let fields =
-            uc.UnionCaseFields
-            |> Seq.map (fun cf -> cerl.PVar "_")
-            |> Seq.toList
-        cerl.PTuple (typeTag :: caseTag :: fields)
-
     let trueExps = litAtom "true" |> constr
     let falseExps = litAtom "false" |> constr
     let mkAlt p g e =
@@ -311,6 +303,56 @@ module Compiler =
     let notEquals = litAtom "/=" |> constr
     let equals = litAtom "=:=" |> constr
     let fez = litAtom "fez" |> constr
+
+    let mkStructuralUnionCasePat (t: FSharpType) (uc: FSharpUnionCase) =
+        let typeTag = mkTypePat t
+        let caseTag = mkUnionPat uc
+        let fields =
+            uc.UnionCaseFields
+            |> Seq.map (fun cf -> cerl.PVar "_")
+            |> Seq.toList
+        cerl.PTuple (typeTag :: caseTag :: fields)
+
+    let mkErlangTermCasePat ctx (t: FSharpType) (uc: FSharpUnionCase) =
+        let mkTypeCheck (t: FSharpType) name =
+            let ln = t.TypeDefinition.LogicalName
+            match ln with
+            | "int" ->
+                cerl.ModCall((erlang, litAtom "is_integer" |> constr), [name]) |> constr
+            | "string" ->
+                cerl.ModCall((erlang, litAtom "is_list" |> constr), [name]) |> constr
+            | x -> failwithf "mkTypeCheck not impl %A" x
+        match Seq.toList uc.UnionCaseFields with
+        | [] -> //no args match on atom
+            uc.Name.ToLower() |> lAtomPat, cerl.defaultGuard
+        | [a] ->
+            let name, ctx = uniqueName ctx
+            let guard = cerl.Guard (mkTypeCheck (a.FieldType) (cerl.Var name |> constr))
+            let field = cerl.PVar name
+            field, guard
+        | fields ->
+            // turn field into nested guard type check expression
+            let nameChecks, ctx =
+                fields
+                |> foldNames ctx (fun ctx f ->
+                    let name, ctx = uniqueName ctx
+                    let check = mkTypeCheck f.FieldType (cerl.Var name |> constr)
+                    (name, check), ctx)
+            let checks = nameChecks |> List.map snd
+            let patterns = nameChecks |> List.map (fst >> cerl.PVar)
+            let falseExp = litAtom "false"
+            let trueExp = litAtom "true"
+            let wrap ifExps thenExps =
+                let a1 = altExpr (boolPat "true", cerl.defaultGuard, constr thenExps)
+                let a2 = altExpr (boolPat "false", cerl.defaultGuard, constr falseExp)
+                cerl.Case(ifExps, [a1;a2])
+
+            let state = wrap (List.head checks) trueExp
+            let res =
+                List.tail checks
+                |> List.fold (fun s c -> wrap c s) state
+
+            cerl.PTuple patterns, cerl.Guard (constr res)
 
     let put k v =
         let put = litAtom "put" |> constr
@@ -342,7 +384,7 @@ module Compiler =
 
     let castLiteral (o: obj) =
         match o with
-        | :? int as i -> cerl.LInt i |> Some
+        | :? int as i -> cerl.LInt (int64 i) |> Some
         | :? float as f -> cerl.LFloat f |> Some
         | :? float32 as f -> cerl.LFloat (float f) |> Some
         | :? char as c -> cerl.LChar c |> Some
@@ -353,26 +395,35 @@ module Compiler =
 
     let tupleGet idx e =
         let element = litAtom "element" |> constr
-        let idx = idx+1 |> cerl.LInt
+        let idx = idx+1L |> cerl.LInt
         modCall erlang element [cerl.Lit idx |> constr; e]
 
     let toLowerString (o:obj) =
         o.ToString().ToLower()
 
-    //TODO: should we consult the FSharpType as well?
-    let mapConst (o : obj) =
+    let mapConst (o : obj) (t: FSharpType) =
+        let td = t.TypeDefinition
         match o with
-        | :? int as i -> litInt i
+        | o when t.TypeDefinition.IsEnum ->
+            // turn enums into atoms using their case name
+            let f = td.FSharpFields
+                    |> Seq.find (fun f ->
+                        match f.LiteralValue with
+                        | Some v -> v = o
+                        | _ -> false)
+            litAtom (f.Name)
+        | :? int as i -> litInt (int64 i)
+        | :? int64 as i -> litInt i
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
         | null -> //unit
             litAtom "fez_unit" //Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
 
-    let ioLibFormat nm str args =
+    let ioLibFormat nm str t args =
         let io = annLAtom "io_lib"
         let format = annLAtom "format"
-        let arg1 = mapConst str |> constr
+        let arg1 = mapConst str t |> constr
         let args = [arg1; cerl.List (cerl.L args) |> constr]
         modCall io format args |> constr, nm
     // flatten nested single parameter lambdas
@@ -435,7 +486,8 @@ module Compiler =
         | Some callee, LogicalName "get_Message"
                        & (IsMemberOn "Exception" _ ), _ ->
             let arg, nm = processExpr nm callee
-            ioLibFormat nm "~p" [arg]
+            let t= callee.Type
+            ioLibFormat nm "~p" t [arg]
         | callee, f, e when f.EnclosingEntity.FullName = nm.Module
                             || (f.EnclosingEntity.IsFSharpUnion
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
@@ -547,6 +599,13 @@ module Compiler =
             let idx = cerl.LInt idx
             modCall erlang el [cerl.Lit idx |> constr; e] |> constr, nm
 
+        let (|ErlangTerm|_|) (t: FSharpType) =
+            if t.TypeDefinition.Attributes
+               |> Seq.exists (fun a -> a.AttributeType.LogicalName = "ErlangTerm") then
+                Some t
+            else None
+
+
         match expr with
         | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
             let a1, nm = processExpr nm e
@@ -564,9 +623,13 @@ module Compiler =
             let a1, nm = processExpr nm e
             let a2 = litAtom "undefined" |> constr
             modCall erlang equals [a1; a2] |> constr, nm
+        | B.UnionCaseTest (e, ErlangTerm t, uc) ->
+            let pat, guard = mkErlangTermCasePat nm t uc
+            let alt1 = mkAlt pat guard trueExps
+            let alt2 = mkAlt (cerl.PVar "_") cerl.defaultGuard falseExps
+            let e, ctx = processExpr nm e
+            cerl.Case(e, [alt1; alt2]) |> constr, ctx
         | B.UnionCaseTest (e, t, uc) ->
-            let typeTag = mkTypeTag t
-            let caseTag = mkUnionTag uc
             let pat1 = mkStructuralUnionCasePat t uc
             let alt1 = mkAlt pat1 cerl.defaultGuard trueExps
             let alt2 = mkAlt (cerl.PVar "_") cerl.defaultGuard falseExps
@@ -587,14 +650,14 @@ module Compiler =
                 let valueExps = cerl.Var v' |> constr
                 valueExps, nm
         | B.Const (o, t) ->
-            mapConst o |> constr, nm
+            mapConst o t |> constr, nm
         | B.NewTuple (fsType, args) ->
             let args, nm = foldNames nm processExpr args
             let args = List.map (flattenLambda []) args
             cerl.Tuple args |> constr, nm
         | B.TupleGet (fsType, idx, e) ->
             let idx = idx+1
-            element nm idx e
+            element nm (int64 idx) e
         | B.NewUnionCase (IsFSharpList t, IsCase "Empty" c, e) ->
             constr (cerl.Lit cerl.LNil), nm
         | B.NewUnionCase (IsFSharpList t, IsCase "Cons" c, e) ->
@@ -605,6 +668,16 @@ module Compiler =
             processExpr nm e
         | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) ->
             constr (litAtom "undefined"), nm
+        | B.NewUnionCase(ErlangTerm t, uc, []) as e ->
+            uc.Name.ToLower() |> litAtom |> constr, nm
+        | B.NewUnionCase(ErlangTerm t, uc, [arg]) as e ->
+            // a single arg is treated like it's value
+            processExpr nm arg
+        | B.NewUnionCase(ErlangTerm t, uc, args) as e ->
+            // if the DU case has args we treat them as any other tuple
+            let args, nm = foldNames nm processExpr args
+            let args = List.map (flattenLambda []) args
+            cerl.Tuple args |> constr, nm
         | B.NewUnionCase(t, uc, argExprs) as e ->
             let typeTag = mkTypeTag t |> constr
             let caseTag = mkUnionTag uc
@@ -656,6 +729,7 @@ module Compiler =
                 t.TypeDefinition.FSharpFields
                 |> Seq.findIndex ((=) fld)
                 |> (+) 1
+                |> int64
             let e, nm = processExpr nm e
             tupleGet tupleIndex e |> constr, nm
         | B.NewRecord (t, args) ->
@@ -676,14 +750,30 @@ module Compiler =
              modCall erlang hd [e] |> constr, nm
         | B.UnionCaseGet (value, IsFSharpOption t, IsCase "Some" c, fld) ->
             processExpr nm value
+        | B.UnionCaseGet(e, ErlangTerm t, c, f) ->
+            match Seq.toList c.UnionCaseFields with
+            | [] -> //atom case
+                c.Name.ToLower() |> litAtom |> constr, nm
+            | [a] ->
+                processExpr nm e
+            | args ->
+            let idx =
+                c.UnionCaseFields
+                |> Seq.findIndex ((=) f)
+                |> int64
+            let element = litAtom "element" |> constr
+            let e, nm = processExpr nm e
+            let idx = idx + 1L |> cerl.LInt
+            modCall erlang element [cerl.Lit idx |> constr; e] |> constr, nm
         | B.UnionCaseGet(e, t, c, f) ->
             // turn these into element/2 calls
             let idx =
                 c.UnionCaseFields
                 |> Seq.findIndex ((=) f)
+                |> int64
             let element = litAtom "element" |> constr
             let e, nm = processExpr nm e
-            let idx = idx + 3 |> cerl.LInt
+            let idx = idx + 3L |> cerl.LInt
             modCall erlang element [cerl.Lit idx |> constr; e] |> constr, nm
         | B.Coerce(a, e) ->
             processExpr nm e
@@ -702,7 +792,7 @@ module Compiler =
                 cerl.Exps (cerl.Constr expss), nm
         // horrendously specific match to intercept printfn and sprintf
         | B.Application (B.Let ((_, B.Call (None, (LogicalName "printfn" | LogicalName "sprintf" as p), _, _,
-                                            [B.Coerce (_, B.NewObject (_, _, [B.Const (:? string as str, _)]))])), _letBody),
+                                            [B.Coerce (_, B.NewObject (_, _, [B.Const (:? string as str, t)]))])), _letBody),
                          _types, args) ->
             let format = annLAtom "format"
             // primitive format converion
@@ -717,7 +807,7 @@ module Compiler =
                 | "sprintf" ->
                     annLAtom "io_lib", str
                 | _ -> failwith "unexpected"
-            let arg1 = mapConst str |> constr
+            let arg1 = mapConst str t |> constr
             let args, nm = foldNames nm processExpr args
             let args = [arg1; cerl.List (cerl.L args) |> constr]
             modCall io format args |> constr, nm
@@ -826,7 +916,7 @@ module Compiler =
                 (* when t.TypeDefinition.IsFSharpRecord || t.TypeDefinition.IsFSharpUnion -> *)
             //  attempt tuple type test on any other type
             let tag = mkTypeTag t |> constr
-            let ele, nm = element nm 1 valExpr
+            let ele, nm = element nm 1L valExpr
             modCall erlang equals [tag; ele] |> constr, nm
         | B.TypeLambda(_, e) ->
             let e, nm = processExpr nm e
@@ -841,10 +931,35 @@ module Compiler =
         | Skip
 
     let rec processModDecl ctx decl =
-        (* printfn "decl %A" decl *)
+        let (|HasModCallAttribute|_|) (m :  FSharpMemberOrFunctionOrValue) =
+            // TODO check all items in list
+            match Seq.toList m.Attributes with
+            | [a] when a.AttributeType.FullName = "Fez.Core.ModCall" ->
+                Some (Seq.toList a.ConstructorArguments, m)
+            | _ -> None
+
+        printfn "decl %A" decl
         match decl with
+        | MemberOrFunctionOrValue(HasModCallAttribute(args, memb), Parameters ps, _expr) ->
+            (* let e, nm = processExpr ctx expr *)
+            printfn "args %A" args
+            let e1 = litAtom ((snd args.[0]) :?> string) |> constr
+            let e2 = litAtom ((snd args.[1]) :?> string) |> constr
+            let args, nm = foldNames ctx (safeVar true) ps
+            let e = modCall e1 e2 ((args |> List.map (cerl.Var >> constr))) |> constr
+            let l = lambda args e
+            //TODO top level functions are unique so no need to prefix
+            let name = memb.LogicalName
+            let f, nm = mkFunction nm name (List.length ps)
+            Fun (f, funDef f l)
+
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
+            let atts = (Seq.toList memb.Attributes)
+            match atts with
+            | [a] ->
+                printfn "args %A %A" (a.AttributeType.FullName) (Seq.toList a.ConstructorArguments)
+            | _ -> ()
             let name =
                 if memb.EnclosingEntity.FullName = ctx.Module then
                     memb.LogicalName

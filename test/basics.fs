@@ -225,3 +225,35 @@ type Obj =
 let interfaces () =
     use o = O
     (o :> IPrt).Prt()
+
+//to represent atoms - will lowercase the case name
+[<ErlangTerm>]
+type TimeUnit =
+    | Second
+    | Millisecond
+    | Microsecond
+    | Nanosecond
+    | Native
+    | Perf_counter
+    | Integer of int
+
+[<ModCall("erlang", "system_time")>]
+let erlang_system_time (opt : TimeUnit) =
+    0L //dummy
+
+let now () =
+    erlang_system_time(TimeUnit.Millisecond),
+    erlang_system_time(Integer 4)
+
+
+[<ErlangTerm>]
+type TestTerm =
+    | Second
+    | Integer of int
+    | Tuple of int * int
+
+let erlang_term_match =
+    function
+    | Second -> "second"
+    | Integer i -> sprintf "%i" i
+    | Tuple (a, b) -> sprintf "%i %i" a b
