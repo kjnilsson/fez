@@ -1,5 +1,16 @@
 -module('Microsoft.FSharp.Core.StringModule').
--compile(export_all).
+-export([
+		length/1,
+		string/1,
+		concat/2,
+		exists/2,
+		forall/2,
+		init/2,
+		map/2,
+	    mapi/2,
+		replicate/2
+	]).
+
 
 %% TODO: at some point should strings be binaries just
 %% like in elixir?
@@ -41,18 +52,18 @@ init(Idx, Fun) ->
 %% Applies a specified function to each character in the string.
 %% iter : (char → unit) → string → unit
 %% TODO: cannot mutate..
-iter(Fun, Str) ->
-	lists:map(Fun, Str).
+% iter(Fun, Str) ->
+% 	lists:map(Fun, Str).
 
 %% Applies a specified function to the index of each character in the string and the character itself.
 %% iteri : (int → char → unit) → string → unit
 %% TODO: cannot mutate..
-iteri_(_, "", _) ->
-	"";
-iteri_(Idx, [First|Rest], Fun) ->
-	string:concat([Fun(Idx, First)], iteri_(Idx+1, Rest, Fun)).
-iteri(Fun, Str) ->
-	iteri_(0, Str, Fun).
+% iteri_(_, "", _) ->
+% 	"";
+% iteri_(Idx, [First|Rest], Fun) ->
+% 	string:concat([Fun(Idx, First)], iteri_(Idx+1, Rest, Fun)).
+% iteri(Fun, Str) ->
+% 	iteri_(0, Str, Fun).
 
 %% length : string → int
 length(S) when is_list(S) ->
