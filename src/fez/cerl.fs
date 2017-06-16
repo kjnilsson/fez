@@ -29,7 +29,7 @@ type Literal =
         static member prt lit =
             match lit with
             | LChar c ->
-                sprintf "$%c'" c
+                sprintf "$%c" c
             | LString s ->
                 sprintf "\"%s\"" s
             | LInt i ->
