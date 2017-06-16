@@ -59,10 +59,26 @@ let addEight = add 3 << addFive
 let strLen (s: string) = s.Length
 let strLen2 s = String.length s
 let listLen (s: List<_>) = s.Length
+let strConcat(sep: string, strList:List<string>) = String.concat sep strList
+let hasAs str = String.exists (fun x -> x = 'A') str
+let allAs str = String.forall (fun x -> x = 'A') str
+let times8 str = String.replicate 8 str
+
+let strToAs str = String.map (fun c -> 'A') str
+
+let removeFirstTwo str = String.mapi (fun i c -> if i <= 1 then '_' else c) str
+let removeAfterTwo str = String.mapi (fun i c -> if i >= 2 then '_' else c) str
+
+let repeatIndexTimes n str = String.init n (fun i -> String.replicate i str)
+
+// need System.Char
+// let toUpper str = String.map (fun c -> System.Char.ToUpper c) str
+// let toLower str = String.map (fun c -> System.Char.ToLower c) str
 
 let addOneToAll l = List.map (fun x -> add x 1) l
 let foldTest l = List.fold (fun s n -> s + n) 0 l
 let foldTest2 l = List.fold add 0 l
+let uniquify l = List.distinct l
 
 let sort l = List.sort l
 
