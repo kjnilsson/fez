@@ -35,11 +35,13 @@ after this you can:
 
 
 ```
-./fezc <file.fs>     [on Linux/Mac]
-./fezc.cmd <file.fs> [on Windows]
+./fezc <file.fs> <file2.fs> -o out    [on Linux/Mac]
+./fezc.cmd <file.fs> <file2.fs> - out [on Windows]
 ```
 
-to try to compile fsharp modules to core erlang -> beam.
+to try to compile fsharp modules to the beam.
+
+You can use the `--nobeam` parameter if you only want to compile as core erlang files.
 
 
 To run the tests:
