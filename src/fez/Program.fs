@@ -9,6 +9,8 @@ open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 
 let erlc output file =
+    let out = new System.Collections.Generic.List<_>()
+    let errors = new System.Collections.Generic.List<_>()
     use proc = new Process()
     proc.StartInfo.UseShellExecute <- false
     proc.StartInfo.FileName <- "erlc"
@@ -18,15 +20,16 @@ let erlc output file =
     proc.StartInfo.RedirectStandardError <- true
     
     proc.ErrorDataReceived.Add(fun d ->
-        if d.Data <> null then ())// errorF d.Data)
+        if d.Data <> null then errors.Add d.Data)
     proc.OutputDataReceived.Add(fun d ->
-        if d.Data <> null then ())//messageF d.Data)
+        if d.Data <> null then out.Add d.Data)
     proc.Start() |> ignore
     proc.BeginErrorReadLine()
     proc.BeginOutputReadLine()
     proc.WaitForExit()
     if proc.ExitCode <> 0 then
-        failwithf "erlc failed for %s" file
+        let lines = String.Concat(errors |> Seq.map (fun e -> Environment.NewLine + e))
+        failwithf "erlc failed for %s.%s" file lines
 
 
 let writeCoreFile dir name text =
