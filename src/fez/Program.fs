@@ -20,6 +20,7 @@ let main argv =
         let files = argv |> Array.map (|FullPath|)
         let checker = FSharpChecker.Create(keepAssemblyContents = true)
         let options = projectOptions checker files
+        let outFiles = new System.Collections.Generic.List<_>()
         for file in files do
             let fileContents = File.ReadAllText file
             let dir = Path.GetDirectoryName file
@@ -32,7 +33,11 @@ let main argv =
                   for n, m in modules do
                       (* printfn "final ast: %A" m *)
                       cerl.prt m |> writeCoreFile dir n
-                      printfn "OUTFILE: %s/%s" dir n
+                      let fileInfo = FileInfo(Path.Combine(dir, n + ".core"))
+                      outFiles.Add(fileInfo.FullName)
+                      
+        for file in outFiles do
+            printfn "%s" file
         0
     with
     | e ->
