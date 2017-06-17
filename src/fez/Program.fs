@@ -50,6 +50,12 @@ let main argv =
                 Some di.FullName,argv
             | _ -> None,argv
 
+        let noBeam,argv =
+            match argv |> Array.tryFindIndex ((=) "--nobeam") with
+            | Some i ->
+                true,argv |> Array.filter ((<>) "--nobeam")
+            | _ -> false,argv
+
         let sysCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(sysCoreLib)
         let files = argv |> Array.map (|FullPath|)
@@ -74,12 +80,13 @@ let main argv =
                       |> writeCoreFile dir n
                       |> outFiles.Add
 
-        for outDir,file in outFiles do
-            erlc outDir file
+        if not noBeam then
+            for outDir,file in outFiles do
+                erlc outDir file
         0
     with
     | exn ->
-        printfn "fez failed with:" // TODO: write in red to stdout
+        printfn "fez failed with:" // TODO: write in red to stderr
         printfn "%s" exn.Message
         Environment.Exit 1
         1
