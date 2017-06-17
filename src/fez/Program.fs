@@ -9,8 +9,9 @@ open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 
 
 let writeCoreFile dir name text =
-    let path = Path.Combine(dir, name + ".core")
+    let path = FileInfo(Path.Combine(dir, name + ".core")).FullName
     File.WriteAllText(path, text)
+    path
 
 [<EntryPoint>]
 let main argv =
@@ -32,10 +33,10 @@ let main argv =
                   let modules = processDecl decl
                   for n, m in modules do
                       (* printfn "final ast: %A" m *)
-                      cerl.prt m |> writeCoreFile dir n
-                      let fileInfo = FileInfo(Path.Combine(dir, n + ".core"))
-                      outFiles.Add(fileInfo.FullName)
-                      
+                      cerl.prt m 
+                      |> writeCoreFile dir n
+                      |> outFiles.Add
+
         for file in outFiles do
             printfn "%s" file
         0
