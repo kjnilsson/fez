@@ -1,0 +1,23 @@
+module 'interop' [
+'erlang_system_time'/1
+,                  'now1'/0
+,                  'now2'/0
+]
+
+    attributes []
+'erlang_system_time'/1 =
+    fun (_opt0) ->
+        call 'erlang':'system_time'(
+            _opt0)
+
+'now1'/0 =
+    fun () ->
+        apply 'erlang_system_time'/1 (
+            'millisecond')
+
+'now2'/0 =
+    fun () ->
+        apply 'erlang_system_time'/1 (
+            4)
+
+end
