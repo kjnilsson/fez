@@ -31,4 +31,5 @@ let main argv =
               for n, m in modules do
                   (* printfn "final ast: %A" m *)
                   cerl.prt m |> writeCoreFile dir n
+                  printfn "OUTFILE: %s/%s" dir n
     0
