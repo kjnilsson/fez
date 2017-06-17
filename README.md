@@ -35,7 +35,8 @@ after this you can:
 
 
 ```
-./fezc <file.fs>
+./fezc <file.fs>     [on Linux/Mac]
+./fezc.cmd <file.fs> [on Windows]
 ```
 
 to try to compile fsharp modules to core erlang -> beam.
