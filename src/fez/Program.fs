@@ -3,6 +3,7 @@
 open System
 open System.Reflection
 open System.IO
+open System.Diagnostics
 open Fez.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
@@ -53,11 +54,13 @@ let main argv =
                       |> writeCoreFile dir n
                       |> outFiles.Add
 
+
         for file in outFiles do
             printfn "%s" file
         0
     with
-    | e ->
+    | exn ->
+        printfn "fez failed with:" // TODO: write in red to stdout
+        printfn "%s" exn.Message
         Environment.Exit 1
-        reraise ()       
         1
