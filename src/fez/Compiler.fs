@@ -934,11 +934,9 @@ module Compiler =
                 Some (Seq.toList a.ConstructorArguments, m)
             | _ -> None
 
-        printfn "decl %A" decl
         match decl with
         | MemberOrFunctionOrValue(HasModCallAttribute(args, memb), Parameters ps, _expr) ->
             (* let e, nm = processExpr ctx expr *)
-            printfn "args %A" args
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
             let e2 = litAtom ((snd args.[1]) :?> string) |> constr
             let args, nm = foldNames ctx (safeVar true) ps
@@ -951,11 +949,8 @@ module Compiler =
 
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
-            let atts = (Seq.toList memb.Attributes)
-            match atts with
-            | [a] ->
-                printfn "args %A %A" (a.AttributeType.FullName) (Seq.toList a.ConstructorArguments)
-            | _ -> ()
+            let atts = Seq.toList memb.Attributes
+
             let name =
                 if memb.EnclosingEntity.FullName = ctx.Module then
                     memb.LogicalName
