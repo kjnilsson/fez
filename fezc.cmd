@@ -1,3 +1,5 @@
 echo "compiling: %*"
 dotnet run -p src/fez/fez.fsproj "%*"
-erlc -v -o test "test/basics.core" rem get file names
+erlc -v -o test "test/basics.core"
+erlc -v -o test "test/basics.Nested.core"
+erlc -v -o test "test/basics.Nested.Nested2.core"
