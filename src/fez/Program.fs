@@ -38,7 +38,7 @@ let writeCoreFile dir name text =
 let main argv =
     try
         let outputPath,argv =
-            match argv |> Array.tryFindIndex ((=) "-o") with
+            match argv |> Array.tryFindIndex (fun p -> p = "-o" || p = "--output") with
             | Some i when i < argv.Length - 1 ->
                 let di = DirectoryInfo argv.[i+1]
                 let argv =
