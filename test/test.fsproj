@@ -9,7 +9,6 @@
     <Compile Include="aether_test.fs" />
     <Compile Include="wip.fs" />
     <Compile Include="basics.fs" />
-    <Compile Include="interop.fs" />
     <Compile Include="demo.fs" />
   </ItemGroup>
 

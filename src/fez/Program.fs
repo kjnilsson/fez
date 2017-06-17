@@ -8,11 +8,31 @@ open Fez.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 
+let erlc output file =
+    use proc = new Process()
+    proc.StartInfo.UseShellExecute <- false
+    proc.StartInfo.FileName <- "erlc"
+    proc.StartInfo.Arguments <- sprintf "-v -o \"%s\" \"%s\"" output file
+    proc.StartInfo.WorkingDirectory <- output
+    proc.StartInfo.RedirectStandardOutput <- true
+    proc.StartInfo.RedirectStandardError <- true
+    
+    proc.ErrorDataReceived.Add(fun d ->
+        if d.Data <> null then ())// errorF d.Data)
+    proc.OutputDataReceived.Add(fun d ->
+        if d.Data <> null then ())//messageF d.Data)
+    proc.Start() |> ignore
+    proc.BeginErrorReadLine()
+    proc.BeginOutputReadLine()
+    proc.WaitForExit()
+    if proc.ExitCode <> 0 then
+        failwithf "erlc failed for %s" file
+
 
 let writeCoreFile dir name text =
     let path = FileInfo(Path.Combine(dir, name + ".core")).FullName
     File.WriteAllText(path, text)
-    path
+    dir,path
 
 [<EntryPoint>]
 let main argv =
@@ -54,9 +74,8 @@ let main argv =
                       |> writeCoreFile dir n
                       |> outFiles.Add
 
-
-        for file in outFiles do
-            printfn "%s" file
+        for outDir,file in outFiles do
+            erlc outDir file
         0
     with
     | exn ->
