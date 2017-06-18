@@ -8,34 +8,37 @@ open Fez.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 
-let erlc output file =
+let erlc output files =
+    if Seq.isEmpty files then () else
     let out = new System.Collections.Generic.List<_>()
     let errors = new System.Collections.Generic.List<_>()
     use proc = new Process()
     proc.StartInfo.UseShellExecute <- false
     proc.StartInfo.FileName <- "erlc"
-    proc.StartInfo.Arguments <- sprintf "-v -o \"%s\" \"%s\"" output file
+    proc.StartInfo.Arguments <- 
+        let mutable args = sprintf "-v -o \"%s\"" output 
+        for file in files do
+            args <- args + sprintf " \"%s\"" file
+        args
     proc.StartInfo.WorkingDirectory <- output
     proc.StartInfo.RedirectStandardOutput <- true
     proc.StartInfo.RedirectStandardError <- true
     
-    proc.ErrorDataReceived.Add(fun d ->
-        if d.Data <> null then errors.Add d.Data)
-    proc.OutputDataReceived.Add(fun d ->
-        if d.Data <> null then out.Add d.Data)
+    proc.ErrorDataReceived.Add(fun d -> if not (isNull d.Data) then errors.Add d.Data)
+    proc.OutputDataReceived.Add(fun d -> if not (isNull d.Data) then out.Add d.Data)
     proc.Start() |> ignore
     proc.BeginErrorReadLine()
     proc.BeginOutputReadLine()
     proc.WaitForExit()
     if proc.ExitCode <> 0 then
         let lines = String.Concat(errors |> Seq.map (fun e -> Environment.NewLine + e))
-        failwithf "erlc failed for %s.%s" file lines
+        failwithf "erlc failed: %s" lines
 
 
 let writeCoreFile dir name text =
     let path = FileInfo(Path.Combine(dir, name + ".core")).FullName
     File.WriteAllText(path, text)
-    dir,path
+    path
 
 [<EntryPoint>]
 let main argv =
@@ -58,7 +61,8 @@ let main argv =
             | Some i ->
                 true,argv |> Array.filter ((<>) "--nobeam")
             | _ -> false,argv
-
+        
+        let outputPath = ref outputPath
         let sysCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(sysCoreLib)
         let files = argv |> Array.map (|FullPath|)
@@ -68,9 +72,13 @@ let main argv =
         for file in files do
             let fileContents = File.ReadAllText file
             let dir = 
-                match outputPath with
+                match !outputPath with
                 | Some path -> path
-                | _ -> Path.GetDirectoryName file
+                | _ ->
+                    let dir = Path.GetDirectoryName file
+                    outputPath := Some dir
+                    dir
+
             let res = check checker options file fileContents
             let decs = res.AssemblyContents.ImplementationFiles.Head.Declarations
             for implFile in res.AssemblyContents.ImplementationFiles do
@@ -84,8 +92,9 @@ let main argv =
                       |> outFiles.Add
 
         if not noBeam then
-            for outDir,file in outFiles do
-                erlc outDir file
+            match !outputPath with
+            | Some outputPath -> erlc outputPath outFiles
+            | _ -> failwithf "Output path was not set."
         0
     with
     | exn ->
