@@ -133,7 +133,7 @@ module Compiler =
 
     let check (checker : FSharpChecker) options (FullPath file) fileContents =
         let res = checker.ParseAndCheckProject options |> run
-        if res.HasCriticalErrors then
+        if not (Array.isEmpty res.Errors) || res.HasCriticalErrors then
             failwithf "Errs %A" res.Errors
         res
 
