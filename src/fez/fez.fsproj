@@ -6,6 +6,7 @@
   <ItemGroup>
     <Compile Include="cerl.fs" />
     <Compile Include="Compiler.fs" />
+    <Compile Include="erlc.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

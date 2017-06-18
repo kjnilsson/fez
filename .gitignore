@@ -3,6 +3,7 @@ deps
 *.o
 *.beam
 *.plt
+*.swp
 test/*.core
 erl_crash.dump
 ebin

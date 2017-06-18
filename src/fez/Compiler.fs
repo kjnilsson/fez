@@ -601,7 +601,6 @@ module Compiler =
                 Some t
             else None
 
-
         match expr with
         | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
             let a1, nm = processExpr nm e
@@ -690,7 +689,8 @@ module Compiler =
                 cases
                 |> Seq.map (fun c ->
                     let pat = mkStructuralUnionCasePat t c |> mkAliasP
-                    cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard, constr (cerl.Var alias))))
+                    cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard,
+                                    constr (cerl.Var alias))))
                 |> Seq.toList
             let infinity =
                 let expiry = litAtom "infinity" |> constr
@@ -816,7 +816,8 @@ module Compiler =
                         c - (List.length args)
                      | _ -> 0
 
-            let missingArgs, nm = foldNames nm (fun nm _ -> uniqueName nm) [1..cp]
+            let missingArgs, nm =
+                foldNames nm (fun nm _ -> uniqueName nm) [1..cp]
 
             let wrap e =
                 if cp > 0 then
@@ -909,7 +910,6 @@ module Compiler =
               *)
             trueExps, nm
         | B.TypeTest (t, valExpr) ->
-                (* when t.TypeDefinition.IsFSharpRecord || t.TypeDefinition.IsFSharpUnion -> *)
             //  attempt tuple type test on any other type
             let tag = mkTypeTag t |> constr
             let ele, nm = element nm 1L valExpr
