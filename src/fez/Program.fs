@@ -38,28 +38,28 @@ let main argv =
         let files = argv |> Array.map (|FullPath|)
         let checker = FSharpChecker.Create(keepAssemblyContents = true)
         let options = projectOptions checker files
-        let outFiles = new System.Collections.Generic.List<_>()
-        for file in files do
-            let fileContents = File.ReadAllText file
-            let dir = 
-                match !outputPath with
-                | Some path -> path
-                | _ ->
-                    let dir = Path.GetDirectoryName file
-                    outputPath := Some dir
-                    dir
+        let outFiles =
+            [ for file in files do
+                let fileContents = File.ReadAllText file
+                let dir = 
+                    match !outputPath with
+                    | Some path -> path
+                    | _ ->
+                        let dir = Path.GetDirectoryName file
+                        outputPath := Some dir
+                        dir
 
-            let res = check checker options file fileContents
-            let decs = res.AssemblyContents.ImplementationFiles.Head.Declarations
-            for implFile in res.AssemblyContents.ImplementationFiles do
-              for decl in implFile.Declarations do
-                  (* failwithf "%A" decl *)
-                  let modules = processDecl decl
-                  for n, m in modules do
-                      (* printfn "final ast: %A" m *)
-                      cerl.prt m 
-                      |> ErlangCompilerInterop.writeErlangCoreFile dir n
-                      |> outFiles.Add
+                let res = check checker options file fileContents
+                let decs = res.AssemblyContents.ImplementationFiles.Head.Declarations
+                for implFile in res.AssemblyContents.ImplementationFiles do
+                  for decl in implFile.Declarations do
+                      (* failwithf "%A" decl *)
+                      let modules = processDecl decl
+                      for n, m in modules do
+                          (* printfn "final ast: %A" m *)
+                          yield
+                              cerl.prt m 
+                              |> ErlangCompilerInterop.writeErlangCoreFile dir n ]
 
         if not noBeam then
             ErlangCompilerInterop.erlc !outputPath outFiles            
