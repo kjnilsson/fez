@@ -50,7 +50,6 @@ let main argv =
                         dir
 
                 let res = check checker options file fileContents
-                let decs = res.AssemblyContents.ImplementationFiles.Head.Declarations
                 for implFile in res.AssemblyContents.ImplementationFiles do
                   for decl in implFile.Declarations do
                       (* failwithf "%A" decl *)

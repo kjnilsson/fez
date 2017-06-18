@@ -35,8 +35,8 @@ after this you can:
 
 
 ```
-./fezc <file.fs> <file2.fs> -o out    [on Linux/Mac]
-./fezc.cmd <file.fs> <file2.fs> - out [on Windows]
+./fezc <file.fs> <file2.fs> -o out     [on Linux/Mac]
+./fezc.cmd <file.fs> <file2.fs> -o out [on Windows]
 ```
 
 to try to compile fsharp modules to the beam.
