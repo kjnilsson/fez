@@ -8,37 +8,7 @@ open Fez.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 
-let erlc output files =
-    if Seq.isEmpty files then () else
-    let out = new System.Collections.Generic.List<_>()
-    let errors = new System.Collections.Generic.List<_>()
-    use proc = new Process()
-    proc.StartInfo.UseShellExecute <- false
-    proc.StartInfo.FileName <- "erlc"
-    proc.StartInfo.Arguments <- 
-        let mutable args = sprintf "-v -o \"%s\"" output 
-        for file in files do
-            args <- args + sprintf " \"%s\"" file
-        args
-    proc.StartInfo.WorkingDirectory <- output
-    proc.StartInfo.RedirectStandardOutput <- true
-    proc.StartInfo.RedirectStandardError <- true
-    
-    proc.ErrorDataReceived.Add(fun d -> if not (isNull d.Data) then errors.Add d.Data)
-    proc.OutputDataReceived.Add(fun d -> if not (isNull d.Data) then out.Add d.Data)
-    proc.Start() |> ignore
-    proc.BeginErrorReadLine()
-    proc.BeginOutputReadLine()
-    proc.WaitForExit()
-    if proc.ExitCode <> 0 then
-        let lines = String.Concat(errors |> Seq.map (fun e -> Environment.NewLine + e))
-        failwithf "erlc failed: %s" lines
 
-
-let writeCoreFile dir name text =
-    let path = FileInfo(Path.Combine(dir, name + ".core")).FullName
-    File.WriteAllText(path, text)
-    path
 
 [<EntryPoint>]
 let main argv =
@@ -88,13 +58,11 @@ let main argv =
                   for n, m in modules do
                       (* printfn "final ast: %A" m *)
                       cerl.prt m 
-                      |> writeCoreFile dir n
+                      |> ErlangCompilerInterop.writeErlangCoreFile dir n
                       |> outFiles.Add
 
         if not noBeam then
-            match !outputPath with
-            | Some outputPath -> erlc outputPath outFiles
-            | _ -> failwithf "Output path was not set."
+            ErlangCompilerInterop.erlc !outputPath outFiles            
         0
     with
     | exn ->
