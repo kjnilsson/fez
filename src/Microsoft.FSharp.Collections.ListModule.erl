@@ -1,68 +1,66 @@
 -module('Microsoft.FSharp.Collections.ListModule').
--export(
-    [
-        append/2,
-        average/1,
-        averageBy/2,
-        averageBy/4,
-        choose/2,
-        chunkBySize/2,
-        concat/1,
-        collect/2,
-        compareWith/3,
-        contains/2,
-        countBy/2,
-        distinct/1,
-        empty/0,
-        exists/2,
-        exists2/3,
-        filter/2,
-        find/2,
-        findIndex/2,
-        fold/3,
-        fold2/4,
-        foldBack/3,
-        foldBack2/4,
-        forall/2,
-        forall2/3,
-        head/1,
-        init/2,
-        init/4,
-        isEmpty/1,
-        iter/2,
-        iter2/3,
-        iteri/2,
-        iteri/3,
-        iteri2/3,
-        iteri2/4,
-        length/1,
-        map/2,
-        map/3,
-        map2/3,
-        map2/4,
-        map3/4,
-        map3/5,
-        mapi/2,
-        mapi/4,
-        mapi2/3,
-        mapi2/5,
-        max/1,
-        maxBy/2,
-        maxBy/3,
-        min/1,
-        minBy/2,
-        minBy/3,
-        nth/2,
-        partition/2,
-        sort/1,
-        last/1,
-        rev/1,
-        sum/1
-    ]
-).
+-export([
+    append/2,
+    average/1,
+    averageBy/2,
+    averageBy/4,
+    choose/2,
+    chunkBySize/2,
+    concat/1,
+    collect/2,
+    compareWith/3,
+    contains/2,
+    countBy/2,
+    distinct/1,
+    empty/0,
+    exists/2,
+    exists2/3,
+    filter/2,
+    find/2,
+    findIndex/2,
+    fold/3,
+    fold2/4,
+    foldBack/3,
+    foldBack2/4,
+    forall/2,
+    forall2/3,
+    head/1,
+    init/2,
+    init/4,
+    isEmpty/1,
+    iter/2,
+    iter2/3,
+    iteri/2,
+    iteri/3,
+    iteri2/3,
+    iteri2/4,
+    length/1,
+    map/2,
+    map/3,
+    map2/3,
+    map2/4,
+    map3/4,
+    map3/5,
+    mapi/2,
+    mapi/4,
+    mapi2/3,
+    mapi2/5,
+    max/1,
+    maxBy/2,
+    maxBy/3,
+    min/1,
+    minBy/2,
+    minBy/3,
+    nth/2,
+    partition/2,
+    sort/1,
+    last/1,
+    rev/1,
+    sum/1
+    , tryFindIndex/2, tryPick/2, unzip/1, unzip3/1, tryFind/2, zip/2, zip3/3, tail/1, sumBy/2, sortBy/2, scanBack/3, scan/3, replicate/2, pick/2, permute/2, reduce/2]).
 
 append(L1, L2) ->
-    lists:append(L1, L2).
+    lists:append(L1, L2).git 
 
 %% Provides the average element of a list.
 %% If the list is empty the case is not handle an will normally throw an exception
@@ -129,20 +127,17 @@ countBy([H1|Tail],Acc,Counter) when H1 =:= hd(Tail) ->
 countBy([H1|Tail],Acc,Counter) when H1 /= hd(Tail) ->
     countBy(Tail,[{H1,Counter+1}|Acc],0).
 
-
-
 distinct(List) ->
-    L = lists:sort(List),
-    distinct(L,[]).
-distinct([],Acc) ->
-    Acc;
-distinct([H1],Acc) ->
-    [H1|Acc];    
-distinct([H1|Tail],Acc) when H1 =:= hd(Tail) ->
-    distinct(Tail,Acc);
-distinct([H1|Tail],Acc) when H1 /= hd(Tail) ->
-    distinct(Tail,[H1|Acc]).
-
+    lists:reverse(lists:foldl(
+        fun(Elem, Acc) ->
+            case lists:member(Elem, Acc) of
+                true ->
+                    Acc;
+                false ->
+                    [Elem|Acc]
+            end
+        end, [], List
+    )).
 
 empty() -> [].
 
@@ -265,6 +260,8 @@ iteri2(Iter,[H1|T1],[H2|T2],Index) ->
 
 length(L) -> erlang:length(L).
 
+last(L) ->
+    lists:last(L).
 
 map(Fun,List) ->
     map(Fun,List,[]).
@@ -353,19 +350,118 @@ nth(List,N) -> lists:nth(N,List).
 partition(Partition,List) -> lists:partition(Partition,List).
 
 % permute
+permute(Permute,List) ->
+    case erlang:length(distinct(mapi(fun(Index,_) -> Permute(Index) end ,List))) == erlang:length(List) of
+        false -> erlang:error(not_permutable);
+        true ->
+            ListIndexed = mapi(fun(Index,Elem) -> {Permute(Index),Elem} end ,List),
+            ListIndexedSorted = lists:sort(ListIndexed),
+            mapi(fun(_,{_,Elem}) -> Elem end, ListIndexedSorted)
+    end.
 
-% pick()
+
+pick(_,[]) ->
+    erlang:error(key_not_found);
+pick(Chooser,[H|T]) ->
+    case Chooser(H) of
+        none -> pick(Chooser,T);
+        {some,Value} -> Value
+    end.
+
+reduce(Reduction, List) ->
+    reduce(Reduction,List,[]).
+reduce(_, [], []) ->
+    erlang:error(badarg);
+reduce(_, [], [Acc]) ->
+    Acc;  
+reduce(_, [H], []) ->
+    H;
+reduce(Reduction, [H], [Acc]) ->
+    Reduction(Acc,H);
+reduce(Reduction, [H1|[H2|T]], []) ->
+    reduce(Reduction,T, [Reduction(H2,H1)]);
+reduce(Reduction, [H1|T], [Acc]) ->
+    reduce(Reduction,T, [Reduction(Acc,H1)]).
+
+% reduceBack()
+
+replicate(N,Elem) -> lists:duplicate(N,Elem).
+
+rev(L) -> lists:reverse(L).
+
+scan(Folder,State,List) ->
+    scan(Folder,State,List,[]).
+scan(_,_,[],Acc) ->
+    lists:reverse(Acc);
+scan(Folder,State,[H|T],Acc) ->
+    NewState = Folder(State,H),
+    scan(Folder,NewState,T,[NewState|Acc]).
+
+scanBack(_,[],_) -> 
+    [];
+scanBack(Folder,[H|T],State) -> 
+    NewState = Folder(H,State),
+    [NewState|scanBack(Folder,T,NewState)].    
 
 sort(L) ->
     lists:sort(L).
 
-last(L) ->
-    lists:last(L).
-
-rev(L) ->
-    lists:reverse(L).
+sortBy(Projection,List) ->
+    ListProjected = map(fun(X) -> {Projection(X),X} end, List),
+    ListSorted = lists:sort(ListProjected),
+    map(fun({_,X}) -> X end, ListSorted).
+    
+% sortWith
 
 sum(L) ->
     lists:sum(L).
 
+sumBy(Projection,List) ->
+    sumBy(Projection,List,0).
+sumBy(_,[],Acc) ->
+    Acc;
+sumBy(Projection,[H|T],Acc) ->
+    sumBy(Projection,T,Projection(H) + Acc).
+
+tail(List) -> lists:last(List).
+
+% toArray
+
+% toSeq
+
+
+tryFind(_,[]) ->
+    none;
+tryFind(Pred,[H|T]) ->
+    case Pred(H) of
+        true -> {some,H};
+        false -> tryFind(Pred,T)
+    end.
+
+
+tryFindIndex(Pred,List) ->
+    tryFindIndex(Pred,List,0).
+tryFindIndex(_,[],_) ->
+    none;
+tryFindIndex(Pred,[H|T],Index) ->
+    case Pred(H) of
+        true -> {some,Index};
+        false -> tryFindIndex(Pred,T,Index+1)
+    end.
+
+tryPick(_,[]) ->
+    none;
+tryPick(Chooser,[H|T]) ->
+    case Chooser(H) of
+        none -> tryPick(Chooser,T);
+        {some,Value} -> {some,Value}
+    end.
+
+unzip(L) -> lists:unzip(L).
+
+unzip3(L) -> lists:unzip3(L).
+
+zip(L1,L2) -> lists:zip(L1,L2).
+
+zip3(L1,L2,L3) -> lists:zip3(L1,L2,L3).
 
