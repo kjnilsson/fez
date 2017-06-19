@@ -288,3 +288,4 @@ let erlang_term_match =
     | Tuple (a, b) -> sprintf "%i %i" a b
 
 let just_string = string "a_string"
+let just_char = string 'a'
