@@ -44,14 +44,20 @@ seq({seq, _} = X) -> X;
 seq(X) when is_list(X) ->
     {seq, fun () -> {list, X} end}.
 
-string(X) ->
-  if
-    io_lib:printable_list(X) -> X;          % is already string
-    io_lib:printable_unicode_list(X) -> X;  % is already string
-    io_lib:printable_list([X]) -> [X];          % is a char
-    io_lib:printable_unicode_list([X]) -> [X];  % is a char
-    true -> io_lib:format("~p", [X]);       % primitive ToString
+string(X) when is_list(X) ->
+  case io_lib:printable_unicode_list(X) of
+    true -> X;          % is already string
+    false -> io_lib:format("~p", [X])
+  end;
+string(X) when not is_list(X) ->
+  case io_lib:printable_unicode_list([X]) of
+    true -> [X];          % is a char
+    false -> io_lib:format("~p", X)
   end.
+
+% string(X) ->
+%     % primitive ToString
+%     io_lib:format("~p", [X]).
 
 fst(T) -> element(1, T).
 snd(T) -> element(2, T).
