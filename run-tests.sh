@@ -1,5 +1,5 @@
 set -e
-# ./fezc ./test/Aether.fs ./test/aether_test.fs ./test/basics.fs
 ./fezc ./test/basics.fs
 erlc -o ./test ./test/basics*.core
-make eunit
+erlc -o ./test ./test/*.erl
+erl -noshell -pa ebin test -eval "eunit:test(basics_tests, [verbose])" -s init stop
