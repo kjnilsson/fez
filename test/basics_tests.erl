@@ -134,3 +134,16 @@ try_finally_test() ->
 
 interface_test() ->
     "O" = basics:interfaces().
+
+
+mod_call_test() ->
+    {MS, S} = basics:now(),
+    ?assert(MS > 0),
+    ?assert(S > 0),
+    ok.
+
+erlang_term_match_test() ->
+    "second" = basics:erlang_term_match(second),
+    "5" = lists:flatten(basics:erlang_term_match(5)),
+    "5 6" = lists:flatten(basics:erlang_term_match({5, 6})),
+    ok.

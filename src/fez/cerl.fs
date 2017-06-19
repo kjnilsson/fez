@@ -21,7 +21,7 @@ type Atom = Atom of string
 type Literal =
     | LChar of char     // ^ character literal
     | LString of string   // ^ string literal
-    | LInt of int  // ^ integer literal
+    | LInt of int64  // ^ integer literal
     | LFloat of float   // ^ floating point literal
     | LAtom of Atom      // ^ atom literal
     | LNil              // ^ empty list

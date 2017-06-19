@@ -19,17 +19,15 @@ for some discussions on potential implementation approaches.
 
 ### Getting started
 
-Currently the scripts are only unix compatible but should be easy to translate
-to windows if you're such inclined.
-
 #### Requirements
 
 * [.NET core](https://dotnet.github.io/)
-* erlang 19+
+* [erlang 19+](https://www.erlang.org/downloads)
 
 
 ```
-./build.sh
+./build.sh   [on Linux/Mac]
+./build.cmd  [on Windows]
 
 ```
 
@@ -37,10 +35,13 @@ after this you can:
 
 
 ```
-./fezc <file.fs>
+./fezc <file.fs> <file2.fs> -o out     [on Linux/Mac]
+./fezc.cmd <file.fs> <file2.fs> -o out [on Windows]
 ```
 
-to try to compile fsharp modules to core erlang -> beam.
+to try to compile fsharp modules to the beam.
+
+You can use the `--nobeam` parameter if you only want to compile as core erlang files.
 
 
 To run the tests:
