@@ -20,6 +20,33 @@ open Fez.Core
      * cases with more than one value are interpreted as tuples
  *)
 
+(* type IPrt = *)
+(*     abstract member Prt: unit ->  string *)
+
+(* type Obj = *)
+(*     | O *)
+(*     interface System.IDisposable with *)
+(*         member x.Dispose() =  printfn "dispose" *)
+(*     interface IPrt with *)
+(*         member x.Prt() = "O" *)
+
+(* let interfaces () = *)
+(*     use o = O *)
+(*     (o :> IPrt).Prt() *)
+
+type Test2 =
+    | Test2
+    static member prt (t: Test2) = "test2"
+
+(* let str() = *)
+(*     string "hi" *)
+
+(* let private sys_char() = *)
+(*     System.Char.IsDigit '1' *)
+
+(* let char_member (c: char) = *)
+(*     (c :> obj).ToString() *)
+(*
 type T() =
     abstract member Prt: unit ->  string
 
@@ -63,7 +90,7 @@ let estuff =
     | Integer i -> sprintf "%i" i
     | SomeTuple (i, s) -> sprintf "%i %s" i s
     | _ -> "def"
-
+*)
 (* [<ModCall("erlang", "round")>] *)
 (* let erlang_round (n: float) = *)
 (*     0L *)

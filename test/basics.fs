@@ -286,3 +286,5 @@ let erlang_term_match =
     | Second -> "second"
     | Integer i -> sprintf "%i" i
     | Tuple (a, b) -> sprintf "%i %i" a b
+
+let just_string = string "a_string"

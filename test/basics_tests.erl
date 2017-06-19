@@ -164,3 +164,6 @@ erlang_term_match_test() ->
     "5" = lists:flatten(basics:erlang_term_match(5)),
     "5 6" = lists:flatten(basics:erlang_term_match({5, 6})),
     ok.
+
+string_to_string_test() ->
+    "a_string" = basics:just_string().

@@ -484,6 +484,10 @@ module Compiler =
             let arg, nm = processExpr nm callee
             let t= callee.Type
             ioLibFormat nm "~p" t [arg]
+        | None, f, [e] when f.FullName = "Microsoft.FSharp.Core.Operators.string"
+                            && e.Type.TypeDefinition.LogicalName = "string" ->
+            //erase ToString on strings
+            processExpr nm e
         | callee, f, e when f.EnclosingEntity.FullName = nm.Module
                             || (f.EnclosingEntity.IsFSharpUnion
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
@@ -523,11 +527,7 @@ module Compiler =
             // attempt dispatch on object member by adding the "dispatchee"
             // as the first argument to the function
             let name = f.LogicalName
-            let eeFullName = f.EnclosingEntity.FullName
-            let m = litAtom eeFullName |> constr
-            let f = litAtom name |> constr
             let args, nm = foldNames nm processExpr (o :: exprs)
-            // remove fez_unit
             // flatten any lambda args
             let stripFezUnit args =
                 // first arg is the dispatch object
@@ -535,12 +535,20 @@ module Compiler =
                 match args with
                 | [o; IsFezUnit _] -> [o]
                 | args -> args
-
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
-            // use trait call here as it will use the embedded type info
-            // to dispatch the call to the right function
-            // Else we'd need a function of format: 'Module:InterfaceType.Member'
-            traitCall name args |> constr, nm
+            let fe = f.EnclosingEntity
+            if fe.IsInterface then
+                // use trait call for dispatch on inteface as it will use the
+                // embedded type info (if available) to dispatch the call to the right function
+                // Else we'd need a function of format: 'Module:InterfaceType.Member'
+                traitCall name args |> constr, nm
+            else
+                let m =
+                    let t = nonAbbreviatedType o.Type
+                    // recurse back to non abbr type name
+                    t.TypeDefinition.FullName |> litAtom |> constr
+                let f = litAtom name |> constr
+                modCall m f args |> constr, nm
         | x ->
             failwithf "not implemented %A" x
 
@@ -922,7 +930,7 @@ module Compiler =
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =
-        | Fun of (cerl.Function * cerl.FunDef)
+        | Fun of (cerl.Function option * cerl.FunDef)
         | Mod of (string * cerl.Module) list
         | Skip
 
@@ -934,19 +942,31 @@ module Compiler =
                 Some (Seq.toList a.ConstructorArguments, m)
             | _ -> None
 
+        let mkFun ctx (memb: FSharpMemberOrFunctionOrValue) ps lambda funDef =
+            let ee = memb.EnclosingEntity
+            let logicalName = memb.LogicalName
+            let name =
+                if ee.FullName = ctx.Module then
+                    logicalName
+                else
+                    // we're probably a member on a type
+                    // make qualified name
+                    sprintf "%s.%s" (ee.LogicalName) logicalName
+            let f, nm = mkFunction ctx name (List.length ps)
+            let fdecl =
+                if memb.Accessibility.IsPublic then Some f
+                else None
+            Fun (fdecl, funDef f lambda)
+
         match decl with
-        | MemberOrFunctionOrValue(HasModCallAttribute(args, memb), Parameters ps, _expr) ->
-            (* let e, nm = processExpr ctx expr *)
+        | MemberOrFunctionOrValue(HasModCallAttribute(args, memb),
+                                  Parameters ps, _expr) ->
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
             let e2 = litAtom ((snd args.[1]) :?> string) |> constr
             let args, nm = foldNames ctx (safeVar true) ps
             let e = modCall e1 e2 ((args |> List.map (cerl.Var >> constr))) |> constr
             let l = lambda args e
-            //TODO top level functions are unique so no need to prefix
-            let name = memb.LogicalName
-            let f, nm = mkFunction nm name (List.length ps)
-            Fun (f, funDef f l)
-
+            mkFun nm memb ps l funDef
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
             let atts = Seq.toList memb.Attributes
@@ -968,8 +988,7 @@ module Compiler =
             let e, nm = processExpr ctx expr
             let l = lambda args e
             //TODO top level functions are unique so no need to prefix
-            let f, nm = mkFunction nm name (List.length ps)
-            Fun (f, funDef f l)
+            mkFun nm memb ps l funDef
         | Entity(ent, declList) when ent.IsFSharpRecord ->
             Skip
         | Entity(ent, declList) when ent.IsFSharpUnion ->
@@ -995,7 +1014,12 @@ module Compiler =
                               | Fun (f, fd) -> Some(f, fd)
                               | _ -> None)
               |> List.unzip
-          yield name, cerl.Module (cerl.Atom ent.FullName, funs, [], funDefs)
+          // add module_info functions
+          let mi = [cerl.moduleInfo0 name; cerl.moduleInfo1 name]
+          let mif = [cerl.Function (cerl.Atom "module_info", 0)
+                     cerl.Function (cerl.Atom "module_info", 1)]
+          let funs = List.choose id funs
+          yield name, cerl.Module (cerl.Atom ent.FullName, funs @ mif, [], funDefs @ mi)
           for md in modDecls do
               match md with
               | Mod decls -> yield! decls

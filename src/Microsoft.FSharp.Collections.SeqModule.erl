@@ -180,6 +180,4 @@ take_test() ->
     [1,2] = toList(take(2, [1,2,3])),
     ok.
 
-
-
 -endif.
