@@ -25,7 +25,7 @@ string(X) -> X.
 %% of the input string and concatenating the resulting strings.
 %% collect : (char → string) → string → string
 collect(Fun, Str) ->
-	lists:flatten(lists:map(Fun, Str)).
+	lists:append(lists:map(Fun, Str)).
 
 %% Returns a new string made by concatenating the given strings with a separator.
 %% concat : string → seq<string> → string
