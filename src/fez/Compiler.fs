@@ -484,6 +484,10 @@ module Compiler =
             let arg, nm = processExpr nm callee
             let t= callee.Type
             ioLibFormat nm "~p" t [arg]
+        | None, f, [e] when f.FullName = "Microsoft.FSharp.Core.Operators.string"
+                            && e.Type.TypeDefinition.LogicalName = "string" ->
+            //erase ToString on strings
+            processExpr nm e
         | callee, f, e when f.EnclosingEntity.FullName = nm.Module
                             || (f.EnclosingEntity.IsFSharpUnion
                                 || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
