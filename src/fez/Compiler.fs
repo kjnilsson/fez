@@ -523,11 +523,7 @@ module Compiler =
             // attempt dispatch on object member by adding the "dispatchee"
             // as the first argument to the function
             let name = f.LogicalName
-            let eeFullName = f.EnclosingEntity.FullName
-            let m = litAtom eeFullName |> constr
-            let f = litAtom name |> constr
             let args, nm = foldNames nm processExpr (o :: exprs)
-            // remove fez_unit
             // flatten any lambda args
             let stripFezUnit args =
                 // first arg is the dispatch object
@@ -535,12 +531,20 @@ module Compiler =
                 match args with
                 | [o; IsFezUnit _] -> [o]
                 | args -> args
-
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
-            // use trait call here as it will use the embedded type info
-            // to dispatch the call to the right function
-            // Else we'd need a function of format: 'Module:InterfaceType.Member'
-            traitCall name args |> constr, nm
+            let fe = f.EnclosingEntity
+            if fe.IsInterface then
+                // use trait call for dispatch on inteface as it will use the
+                // embedded type info (if available) to dispatch the call to the right function
+                // Else we'd need a function of format: 'Module:InterfaceType.Member'
+                traitCall name args |> constr, nm
+            else
+                let m =
+                    let t = nonAbbreviatedType o.Type
+                    // recurse back to non abbr type name
+                    t.TypeDefinition.FullName |> litAtom |> constr
+                let f = litAtom name |> constr
+                modCall m f args |> constr, nm
         | x ->
             failwithf "not implemented %A" x
 
