@@ -20,6 +20,21 @@ open Fez.Core
      * cases with more than one value are interpreted as tuples
  *)
 
+type T() =
+    abstract member Prt: unit ->  string
+
+type T2() =
+    inherit T()
+    member x.Prt() = ""
+
+type T3() =
+    inherit T2()
+
+
+let t =
+    let t = T3()
+    t.Prt()
+
 [<ErlangTerm>]
 type TimeUnit =
     | Second
