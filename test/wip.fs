@@ -34,14 +34,18 @@ open Fez.Core
 (*     use o = O *)
 (*     (o :> IPrt).Prt() *)
 
-let str() =
-    string "hi"
+type Test2 =
+    | Test2
+    static member prt (t: Test2) = "test2"
 
-let sys_char() =
-    System.Char.IsDigit '1'
+(* let str() = *)
+(*     string "hi" *)
 
-let char_member (c: char) =
-    c.ToString()
+(* let private sys_char() = *)
+(*     System.Char.IsDigit '1' *)
+
+(* let char_member (c: char) = *)
+(*     (c :> obj).ToString() *)
 (*
 type T() =
     abstract member Prt: unit ->  string

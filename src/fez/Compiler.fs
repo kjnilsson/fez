@@ -930,7 +930,7 @@ module Compiler =
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =
-        | Fun of (cerl.Function * cerl.FunDef)
+        | Fun of (cerl.Function option * cerl.FunDef)
         | Mod of (string * cerl.Module) list
         | Skip
 
@@ -942,19 +942,31 @@ module Compiler =
                 Some (Seq.toList a.ConstructorArguments, m)
             | _ -> None
 
+        let mkFun ctx (memb: FSharpMemberOrFunctionOrValue) ps lambda funDef =
+            let ee = memb.EnclosingEntity
+            let logicalName = memb.LogicalName
+            let name =
+                if ee.FullName = ctx.Module then
+                    logicalName
+                else
+                    // we're probably a member on a type
+                    // make qualified name
+                    sprintf "%s.%s" (ee.LogicalName) logicalName
+            let f, nm = mkFunction ctx name (List.length ps)
+            let fdecl =
+                if memb.Accessibility.IsPublic then Some f
+                else None
+            Fun (fdecl, funDef f lambda)
+
         match decl with
-        | MemberOrFunctionOrValue(HasModCallAttribute(args, memb), Parameters ps, _expr) ->
-            (* let e, nm = processExpr ctx expr *)
+        | MemberOrFunctionOrValue(HasModCallAttribute(args, memb),
+                                  Parameters ps, _expr) ->
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
             let e2 = litAtom ((snd args.[1]) :?> string) |> constr
             let args, nm = foldNames ctx (safeVar true) ps
             let e = modCall e1 e2 ((args |> List.map (cerl.Var >> constr))) |> constr
             let l = lambda args e
-            //TODO top level functions are unique so no need to prefix
-            let name = memb.LogicalName
-            let f, nm = mkFunction nm name (List.length ps)
-            Fun (f, funDef f l)
-
+            mkFun nm memb ps l funDef
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
             let atts = Seq.toList memb.Attributes
@@ -976,8 +988,7 @@ module Compiler =
             let e, nm = processExpr ctx expr
             let l = lambda args e
             //TODO top level functions are unique so no need to prefix
-            let f, nm = mkFunction nm name (List.length ps)
-            Fun (f, funDef f l)
+            mkFun nm memb ps l funDef
         | Entity(ent, declList) when ent.IsFSharpRecord ->
             Skip
         | Entity(ent, declList) when ent.IsFSharpUnion ->
@@ -1007,6 +1018,7 @@ module Compiler =
           let mi = [cerl.moduleInfo0 name; cerl.moduleInfo1 name]
           let mif = [cerl.Function (cerl.Atom "module_info", 0)
                      cerl.Function (cerl.Atom "module_info", 1)]
+          let funs = List.choose id funs
           yield name, cerl.Module (cerl.Atom ent.FullName, funs @ mif, [], funDefs @ mi)
           for md in modDecls do
               match md with
