@@ -68,6 +68,7 @@ list_module_test() ->
     [1,2,4,3] = basics:uniquify([1,1,2,2,2,4,3,4]).
 
 string_module_test() ->
+    "aaddcc" = basics:doubleChars("adc"),
     "a,b" = basics:strConcat(",", ["a","b"]),
     true = basics:hasAs("has_an_A"),
     true = basics:hasAs("has_many_AAA"),

@@ -70,6 +70,7 @@ let removeFirstTwo str = String.mapi (fun i c -> if i <= 1 then '_' else c) str
 let removeAfterTwo str = String.mapi (fun i c -> if i >= 2 then '_' else c) str
 
 let repeatIndexTimes n str = String.init n (fun i -> String.replicate i str)
+let doubleChars str = String.collect (fun c -> string c + string c) str
 
 // need System.Char
 // let toUpper str = String.map (fun c -> System.Char.ToUpper c) str
