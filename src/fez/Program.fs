@@ -28,7 +28,7 @@ let main argv =
             | Some i ->
                 true,argv |> Array.filter ((<>) "--nobeam")
             | _ -> false,argv
-        
+
         let outputPath = ref outputPath
         let sysCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(sysCoreLib)
@@ -38,7 +38,7 @@ let main argv =
         let outFiles =
             [ for file in files do
                 let fileContents = File.ReadAllText file
-                let dir = 
+                let dir =
                     match !outputPath with
                     | Some path -> path
                     | _ ->
@@ -53,11 +53,11 @@ let main argv =
                         for n, m in modules do
                             (* printfn "final ast: %A" m *)
                             yield
-                                cerl.prt m 
+                                cerl.prt m
                                 |> Erlc.writeErlangCoreFile dir n ]
 
         if not noBeam then
-            Erlc.call !outputPath outFiles            
+            Erlc.call !outputPath outFiles
         0
     with
     | exn ->

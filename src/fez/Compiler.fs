@@ -1003,7 +1003,11 @@ module Compiler =
                               | Fun (f, fd) -> Some(f, fd)
                               | _ -> None)
               |> List.unzip
-          yield name, cerl.Module (cerl.Atom ent.FullName, funs, [], funDefs)
+          // add module_info functions
+          let mi = [cerl.moduleInfo0 name; cerl.moduleInfo1 name]
+          let mif = [cerl.Function (cerl.Atom "module_info", 0)
+                     cerl.Function (cerl.Atom "module_info", 1)]
+          yield name, cerl.Module (cerl.Atom ent.FullName, funs @ mif, [], funDefs @ mi)
           for md in modDecls do
               match md with
               | Mod decls -> yield! decls

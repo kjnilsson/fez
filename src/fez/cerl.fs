@@ -338,24 +338,33 @@ let mergeGuards (a, b) =
 let prt = Module.prt >> String.concat System.Environment.NewLine
 
 
-let op_ComposeRight =
+let moduleInfo1 m =
     FunDef
-      (Constr (Function (Atom "op_ComposeRight",2)),
+      (Constr (Function (Atom "module_info", 1)),
        (Constr
          (Lambda
-            (["_f0"; "_g0"],
-             (Exp
-               (Constr
-                 (Lambda (["_x0"],
-                     (Exp
-                       (Constr
-                          (App
-                             (Exp (Constr (Var "_g0")),
-                              [Exp
-                                 (Constr
-                                    (App
-                                       (Exp (Constr (Var "_f0")),
-                                        [Exp (Constr (Var "_x0"))])))]))))))))))))
+            (["_fez0"],
+              (Exp
+                (Constr
+                  (ModCall
+                       (((Exp (Constr (Lit (LAtom (Atom("erlang")))))),
+                         (Exp (Constr (Lit (LAtom (Atom("get_module_info"))))))),
+                        [(Exp (Constr (Lit (LAtom (Atom m)))))
+                         (Exp (Constr (Var "_fez0")))]))))))))
+
+let moduleInfo0 m =
+    FunDef
+      (Constr (Function (Atom "module_info", 0)),
+       (Constr
+         (Lambda
+            ([],
+              (Exp
+                (Constr
+                  (ModCall
+                       (((Exp (Constr (Lit (LAtom (Atom("erlang")))))),
+                         (Exp (Constr (Lit (LAtom (Atom("get_module_info"))))))),
+                        [(Exp (Constr (Lit (LAtom (Atom m)))))]))))))))
+
 let op_ComposeLeft =
     FunDef
       (Constr (Function (Atom "op_ComposeLeft",2)),
