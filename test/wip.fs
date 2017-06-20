@@ -34,9 +34,9 @@ open Fez.Core
 (*     use o = O *)
 (*     (o :> IPrt).Prt() *)
 
-type Test2 =
-    | Test2
-    static member prt (t: Test2) = "test2"
+(* type Test2 = *)
+(*     | Test2 *)
+(*     static member prt (t: Test2) = "test2" *)
 
 (* let str() = *)
 (*     string "hi" *)
@@ -46,22 +46,22 @@ type Test2 =
 
 (* let char_member (c: char) = *)
 (*     (c :> obj).ToString() *)
-(*
-type T() =
-    abstract member Prt: unit ->  string
+[<AbstractClass>]
+type SomeT() =
+    abstract Prt: unit -> string
 
 type T2() =
-    inherit T()
-    member x.Prt() = ""
+    inherit SomeT()
+    override x.Prt() = ""
 
 type T3() =
     inherit T2()
-
 
 let t =
     let t = T3()
     t.Prt()
 
+(*
 [<ErlangTerm>]
 type TimeUnit =
     | Second
