@@ -2,6 +2,7 @@
 -export([
 		length/1,
 		string/1,
+		collect/2,
 		concat/2,
 		exists/2,
 		forall/2,
@@ -22,7 +23,9 @@ string(X) -> X.
 %% Creates a new string whose characters are the results of 
 %% applying a specified function to each of the characters 
 %% of the input string and concatenating the resulting strings.
-%% TODO collect : (char → string) → string → string
+%% collect : (char → string) → string → string
+collect(Fun, Str) ->
+	lists:append(lists:map(Fun, Str)).
 
 %% Returns a new string made by concatenating the given strings with a separator.
 %% concat : string → seq<string> → string

@@ -70,10 +70,24 @@ let removeFirstTwo str = String.mapi (fun i c -> if i <= 1 then '_' else c) str
 let removeAfterTwo str = String.mapi (fun i c -> if i >= 2 then '_' else c) str
 
 let repeatIndexTimes n str = String.init n (fun i -> String.replicate i str)
+let doubleChars str = String.collect (fun c -> string c + string c) str
+let getMores str = String.collect (fun c -> "more") str
 
-// need System.Char
-// let toUpper str = String.map (fun c -> System.Char.ToUpper c) str
-// let toLower str = String.map (fun c -> System.Char.ToLower c) str
+let toUpper str = String.map (fun c -> System.Char.ToUpper c) str
+let toLower str = String.map (fun c -> System.Char.ToLower c) str
+
+let charsAreLower l = List.map (fun c -> System.Char.IsLower c) l
+let charsAreUpper l = List.map (fun c -> System.Char.IsUpper c) l
+let charsToUpper l = List.map (fun c -> System.Char.ToUpper c) l
+let charsToLower l = List.map (fun c -> System.Char.ToLower c) l
+let charsAreDigit l = List.map (fun c -> System.Char.IsDigit c) l
+let charsAreControl l = List.map (fun c -> System.Char.IsControl c) l
+let charsAreLetter l = List.map (fun c -> System.Char.IsLetter c) l
+let charsAreLetterOrDigit l = List.map (fun c -> System.Char.IsLetterOrDigit c) l
+let charsAreSeparator l = List.map (fun c -> System.Char.IsSeparator c) l
+let charsArePunctuation l = List.map (fun c -> System.Char.IsPunctuation c) l
+let parseLatin1 str = System.Char.Parse str
+// let tryParse str = System.Char.TryParse str
 
 let addOneToAll l = List.map (fun x -> add x 1) l
 let foldTest l = List.fold (fun s n -> s + n) 0 l
@@ -275,3 +289,4 @@ let erlang_term_match =
     | Tuple (a, b) -> sprintf "%i %i" a b
 
 let just_string = string "a_string"
+let just_char = string 'a'

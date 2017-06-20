@@ -67,7 +67,26 @@ list_module_test() ->
     [1,2,3] = basics:uniquify([1,2,2,3]),
     [1,2,4,3] = basics:uniquify([1,1,2,2,2,4,3,4]).
 
+char_module_test() ->
+    [true, false, false, false, true] = basics:charsAreLower([$a, $A, $1, $;, $e]),
+    [false, true, false, false, true] = basics:charsAreUpper([$a, $A, $1, $;, $E]),
+    [$A, $A, $1, $Z, $Z] = basics:charsToUpper([$a, $A, $1, $Z, $z]),
+    [$a, $a, $1, $z, $z] = basics:charsToLower([$a, $A, $1, $Z, $z]),
+    [true, false, false, true, true] = basics:charsAreDigit([$1, $A, $O, $2, $0]),
+    [true, false, false, true, true] = basics:charsAreControl([$\n, $A, $3, $\t, $\r]),
+    % [false, true, false, true, true] = basics:charsAreLetter([$\n, $A, $3, $œ, $Å]), % unicode letters not recognized yet
+    [false, true, false, true, true] = basics:charsAreLetter([$\n, $A, $3, $z, $C]),
+    [true, true, true, true, true, true, true, true] = basics:charsArePunctuation([$], $〗, $†, $⁅, ${, $], $?, $.]),
+    [false, false, false, false, false, false] = basics:charsArePunctuation([$\n, 16#0020, $a, $l, $2, $^]),
+    [true, true, true] = basics:charsAreSeparator([16#0020, 16#2028, 16#2029]),
+    [false, false, false] = basics:charsAreSeparator([$a, $|, $,]),
+    "abc" = basics:parseLatin1("abc"),
+    "Привет!" = basics:parseLatin1([208,159,209,128,208,184,208,178,208,181,209,130,33]),
+    "АБВ" = basics:parseLatin1([208,144,208,145,208,146]).
+
 string_module_test() ->
+    % "aaddcc" = basics:doubleChars("adc"), %% TODO fix calling string() on chars
+    "moremoremore" = basics:getMores("adc"),
     "a,b" = basics:strConcat(",", ["a","b"]),
     true = basics:hasAs("has_an_A"),
     true = basics:hasAs("has_many_AAA"),
@@ -78,8 +97,8 @@ string_module_test() ->
     "AAAAA" = basics:strToAs("abcde"),
     "AAAAAAAA" = basics:times8("A"),
     "ABCABCABCABCABCABCABCABC" = basics:times8("ABC"),
-    % "ABC" = basics:toUpper("abc"), // needs System.Char implemented
-    % "abc" = basics:toLower("ABC"), // needs System.Char implemented
+    "ABC" = basics:toUpper("abc"), % needs System.Char implemented
+    "abc" = basics:toLower("ABC"), % needs System.Char implemented
     "__bcccdddd" = basics:removeFirstTwo("abbcccdddd"),
     "ab________" = basics:removeAfterTwo("abbcccdddd"),
     "ABCABCABC" = basics:repeatIndexTimes(3, "ABC").
@@ -149,3 +168,8 @@ erlang_term_match_test() ->
 
 string_to_string_test() ->
     "a_string" = basics:just_string().
+
+% TODO enable this when we fix calling string() on chars
+% char_to_string_test() ->
+%     "a" = basics:just_char().
+
