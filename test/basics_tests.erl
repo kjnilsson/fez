@@ -86,6 +86,7 @@ char_module_test() ->
 
 string_module_test() ->
     % "aaddcc" = basics:doubleChars("adc"), %% TODO fix calling string() on chars
+    "moremoremore" = basics:getMores("adc"),
     "a,b" = basics:strConcat(",", ["a","b"]),
     true = basics:hasAs("has_an_A"),
     true = basics:hasAs("has_many_AAA"),
