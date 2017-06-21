@@ -58,11 +58,9 @@ open Fez.Core
 (*      | Ok s -> s *)
 (*      | _ -> failwith "baa" *)
 
-let pipes() =
-    (2,3) ||> (+),
-        (2,3,4) |||> (fun a b c -> a + b + c),
-            (+) <|| (2,3),
-                (fun a b c -> a + b + c) <||| (2,3,4)
+let explore() =
+    not true
+
 
 
 (* let results () = *)

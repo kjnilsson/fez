@@ -187,3 +187,6 @@ op_mod_div_append_hash_test() ->
 
 pipes_test() ->
     {5,9,5,9} = basics:pipes().
+
+math_ops_test() ->
+    {3,1,2,3,2,1} = basics:math_ops().

@@ -321,3 +321,10 @@ let pipes() =
     (+) <|| (2,3),
     (fun a b c -> a + b + c) <||| (2,3,4)
 
+let math_ops() =
+    abs -3,
+    floor 1.5,
+    ceil 1.6,
+    max 2 3,
+    min 2 3,
+    round 1.4
