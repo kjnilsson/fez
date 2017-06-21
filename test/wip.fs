@@ -58,11 +58,11 @@ open Fez.Core
 (*      | Ok s -> s *)
 (*      | _ -> failwith "baa" *)
 
-let some_ops() =
-    let modu = 10 % 5
-    let div = 10 / 5
-    let app = [] @ []
-    modu, div, app, hash 55
+let pipes() =
+    (2,3) ||> (+),
+        (2,3,4) |||> (fun a b c -> a + b + c),
+            (+) <|| (2,3),
+                (fun a b c -> a + b + c) <||| (2,3,4)
 
 
 (* let results () = *)

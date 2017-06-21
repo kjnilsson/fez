@@ -185,3 +185,5 @@ op_byte_test() ->
 op_mod_div_append_hash_test() ->
     {0,2.0,[],118107429} = basics:mod_div_append_hash().
 
+pipes_test() ->
+    {5,9,5,9} = basics:pipes().

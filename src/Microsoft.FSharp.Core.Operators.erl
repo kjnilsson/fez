@@ -9,7 +9,12 @@ op_ComposeLeft(G, F) ->
         fun (X) -> G (F (X)) end.
 
 op_PipeLeft(F, A) -> F(A).
+op_PipeLeft2(F, A, B) -> F(A, B).
+op_PipeLeft3(F, A, B, C) -> F(A, B, C).
+
 op_PipeRight(A, F) -> F(A).
+op_PipeRight2(A, B, F) -> F(A, B).
+op_PipeRight3(A, B, C, F) -> F(A, B, C).
 
 op_Range(Start, Finish)
   when is_integer(Start)

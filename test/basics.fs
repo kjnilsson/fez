@@ -314,3 +314,10 @@ let mod_div_append_hash() =
     let div = 10 / 5
     let app = [] @ []
     modu, div, app, hash 55
+
+let pipes() =
+    (2,3) ||> (+),
+    (2,3,4) |||> (fun a b c -> a + b + c),
+    (+) <|| (2,3),
+    (fun a b c -> a + b + c) <||| (2,3,4)
+
