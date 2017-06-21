@@ -308,3 +308,9 @@ let operator_byte() =
     byte 99,
     byte 1234566,
     byte 123.99
+
+let mod_div_append_hash() =
+    let modu = 10 % 5
+    let div = 10 / 5
+    let app = [] @ []
+    modu, div, app, hash 55

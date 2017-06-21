@@ -58,18 +58,12 @@ open Fez.Core
 (*      | Ok s -> s *)
 (*      | _ -> failwith "baa" *)
 
-let explore() =
+let some_ops() =
     let modu = 10 % 5
     let div = 10 / 5
     let app = [] @ []
     modu, div, app, hash 55
 
-let operator_byte() =
-    // [1uy;99uy;134uy;123uy]
-    byte "1",
-    byte 99,
-    byte 1234566,
-    byte 123.99
 
 (* let results () = *)
 (*     let r = Ok 1 *)
