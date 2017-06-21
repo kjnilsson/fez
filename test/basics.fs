@@ -211,6 +211,9 @@ type Test2 =
     static member prt (t: Test2) = "test2"
 
 let nested_test () =
+    Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo
+
+let nested_test2 () =
     Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo
 
 exception MyEx of string

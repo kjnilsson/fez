@@ -46,6 +46,22 @@ open Fez.Core
 
 (* let char_member (c: char) = *)
 (*     (c :> obj).ToString() *)
+
+type Result<'T,'E> with
+      member r.get () : 'T =
+         match r with
+         | Ok s -> s
+         | _ -> failwith "boo"
+
+let get (r: Result<_,_>) =
+     match r with
+     | Ok s -> s
+     | _ -> failwith "baa"
+
+let ltest () =
+    let r = Result.Ok 1
+    Result.map ((+) 2) r
+
 [<AbstractClass>]
 type SomeT() =
     abstract Prt: unit -> string

@@ -104,6 +104,14 @@ module Compiler =
                     Some t
         | _ -> None
 
+    let (|IsResult|_|) =
+        function
+        | TypeDefinition tdef as t
+            when tdef.TryFullName =
+                Some "Microsoft.FSharp.Core.Result`2" ->
+                    Some t
+        | _ -> None
+
     let (|IsFSharpList|_|) =
         function
         | TypeDefinition tdef as t
@@ -430,12 +438,12 @@ module Compiler =
         else None
 
     let (|IsMemberOn|_|) t (f: FSharpMemberOrFunctionOrValue) =
-        if f.IsMember && f.EnclosingEntity.LogicalName = t then
+        if f.IsMember && f.LogicalEnclosingEntity.LogicalName = t then
             Some f
         else None
 
     let (|IsModuleMemberOn|_|) t (f: FSharpMemberOrFunctionOrValue) =
-        if f.IsModuleValueOrMember && f.EnclosingEntity.LogicalName = t then
+        if f.IsModuleValueOrMember && f.LogicalEnclosingEntity.LogicalName = t then
             Some f
         else None
 
@@ -488,10 +496,10 @@ module Compiler =
                             && e.Type.TypeDefinition.LogicalName = "string" ->
             //erase ToString on strings
             processExpr nm e
-        | callee, f, e when f.EnclosingEntity.FullName = nm.Module
-                            || (f.EnclosingEntity.IsFSharpUnion
-                                || f.EnclosingEntity.IsFSharpRecord) -> //apply to named function
-            let ee = f.EnclosingEntity
+        | callee, f, e when f.LogicalEnclosingEntity.FullName = nm.Module
+                            || (f.LogicalEnclosingEntity.IsFSharpUnion
+                                || f.LogicalEnclosingEntity.IsFSharpRecord) -> //apply to named function
+            let ee = f.LogicalEnclosingEntity
             let exprs = match callee with
                         | Some e -> e :: exprs
                         | None -> exprs
@@ -515,7 +523,7 @@ module Compiler =
             constr app,nm
         | None, f, _ -> // module call
             let name = f.LogicalName
-            let eeFullName = f.EnclosingEntity.FullName
+            let eeFullName = f.LogicalEnclosingEntity.FullName
             let m = litAtom eeFullName |> constr
             let f = litAtom name |> constr
             let args, nm = foldNames nm processExpr exprs
@@ -536,7 +544,7 @@ module Compiler =
                 | [o; IsFezUnit _] -> [o]
                 | args -> args
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
-            let fe = f.EnclosingEntity
+            let fe = f.LogicalEnclosingEntity
             if fe.IsInterface then
                 // use trait call for dispatch on inteface as it will use the
                 // embedded type info (if available) to dispatch the call to the right function
@@ -943,7 +951,7 @@ module Compiler =
             | _ -> None
 
         let mkFun ctx (memb: FSharpMemberOrFunctionOrValue) ps lambda funDef =
-            let ee = memb.EnclosingEntity
+            let ee = memb.LogicalEnclosingEntity
             let logicalName = memb.LogicalName
             let name =
                 if ee.FullName = ctx.Module then
@@ -970,14 +978,6 @@ module Compiler =
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
             let atts = Seq.toList memb.Attributes
-
-            let name =
-                if memb.EnclosingEntity.FullName = ctx.Module then
-                    memb.LogicalName
-                else
-                    // we're probably a member on a type
-                    // make qualified name
-                    sprintf "%s.%s" (memb.EnclosingEntity.LogicalName) memb.LogicalName
             let ps =
                 match ps with
                 | [o; x] when memb.IsMember && memb.IsInstanceMember ->

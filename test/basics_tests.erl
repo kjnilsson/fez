@@ -135,7 +135,9 @@ trait_call_test() ->
     "hello" = basics:show(B).
 
 nested_module_test() ->
-    "test2" = basics:nested_test().
+    "test" = basics:nested_test(),
+    "test2" = basics:nested_test2(),
+    ok.
 
 try_with_test() ->
     "banana" = basics:try_with_test().
