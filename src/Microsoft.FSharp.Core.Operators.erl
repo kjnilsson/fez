@@ -25,6 +25,9 @@ op_RangeStep(Start, Step, Finish)
 op_Modulus(X, Y) ->
     X rem Y.
 
+op_Division(X, Y) ->
+    X / Y.
+
 op_Append(L1, L2) ->
     L1 ++ L2.
 
@@ -37,6 +40,9 @@ op_LessThanOrEqual(L1, L2) ->
 id(X) -> X.
 
 ignore(_X) -> ok.
+
+hash(T) ->
+    erlang:phash2(T).
 
 'not'(B) -> not B.
 
@@ -53,6 +59,16 @@ snd(T) -> element(2, T).
 
 box(X) -> X.
 unbox(X) -> X.
+
+byte(N) when is_number(N) ->
+    trunc(N) rem 256;
+byte(S) when is_list(S) ->
+    case list_to_integer(S) of
+        N when N =< 256 ->
+            N;
+        _ -> % too big
+            throw(overflow_exception)
+    end.
 
 failwith(M) ->
     throw({exception, M}).

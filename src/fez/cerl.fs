@@ -34,11 +34,12 @@ type Literal =
                 sprintf "\"%s\"" s
             | LInt i ->
                 sprintf "%i" i
+            | LFloat f ->
+                sprintf "%f" f
             | LAtom (Atom atom) ->
                 sprintf "'%s'" atom
             | LNil ->
                 "[]"
-            | x -> failwithf "%A not impl" x
 
 type ExprList<'T> =
     | L of 'T list // no tail expr

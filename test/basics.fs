@@ -301,3 +301,10 @@ let results () =
     let r = Result.map ((+) 2) r
     let er = Result.mapError String.length er
     r, er
+
+let operator_byte() =
+    // [1uy;99uy;134uy;123uy]
+    byte "1",
+    byte 99,
+    byte 1234566,
+    byte 123.99

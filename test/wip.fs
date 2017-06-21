@@ -58,13 +58,26 @@ open Fez.Core
 (*      | Ok s -> s *)
 (*      | _ -> failwith "baa" *)
 
-let results () =
-    let r = Ok 1
-    let er = Error "blah"
-    let r = Result.bind (fun x -> Ok (x + 1)) r
-    let r = Result.map ((+) 2) r
-    let er = Result.mapError String.length er
-    r, er
+let explore() =
+    let modu = 10 % 5
+    let div = 10 / 5
+    let app = [] @ []
+    modu, div, app, hash 55
+
+let operator_byte() =
+    // [1uy;99uy;134uy;123uy]
+    byte "1",
+    byte 99,
+    byte 1234566,
+    byte 123.99
+
+(* let results () = *)
+(*     let r = Ok 1 *)
+(*     let er = Error "blah" *)
+(*     let r = Result.bind (fun x -> Ok (x + 1)) r *)
+(*     let r = Result.map ((+) 2) r *)
+(*     let er = Result.mapError String.length er *)
+(*     r, er, r *)
 
 (* [<AbstractClass>] *)
 (* type SomeT() = *)

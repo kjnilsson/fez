@@ -247,6 +247,9 @@ module Compiler =
     let litInt i =
         cerl.Lit (cerl.LInt i)
 
+    let litFlt i =
+        cerl.Lit (cerl.LFloat i)
+
     let litChar s =
         cerl.Lit (cerl.LChar s)
 
@@ -417,6 +420,8 @@ module Compiler =
         match o with
         | :? int as i -> litInt (int64 i)
         | :? int64 as i -> litInt i
+        | :? float as i -> litFlt i
+        | :? float32 as i -> litFlt (float i)
         | :? char as c -> litChar c
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
@@ -522,7 +527,6 @@ module Compiler =
             let app = apply func args
             constr app,nm
         | None, f, _ -> // module call
-            printfn "modCall %A %A" argTypes (List.length exprs)
             let name = f.LogicalName
             let eeFullName = f.LogicalEnclosingEntity.FullName
             let m = litAtom eeFullName |> constr
@@ -846,7 +850,6 @@ module Compiler =
             processExpr nm target
         | B.Application (target, _types, args) ->
             let res = target.Type.IsUnresolved
-            printfn "application types %A %A" _types res
             let cp = match target with
                      | B.Value f ->
                         let c =
@@ -896,7 +899,6 @@ module Compiler =
             let body = mkLet unitName fezUnit body |> constr
             cerl.Lambda ([], body) |> constr, nm
         | B.Lambda (p, expr) ->
-            printfn "lambda.IstypeFunction %A" p.GenericParameters
             let v, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
             let l = cerl.Lambda ([v], body) |> constr
@@ -1027,7 +1029,7 @@ module Compiler =
 
 
     and processDecl decl = [
-      printfn "decl: %A" decl
+      (* printfn "decl: %A" decl *)
       match decl with
       | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
           let name = ent.FullName
