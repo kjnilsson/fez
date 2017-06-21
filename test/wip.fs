@@ -47,35 +47,39 @@ open Fez.Core
 (* let char_member (c: char) = *)
 (*     (c :> obj).ToString() *)
 
-type Result<'T,'E> with
-      member r.get () : 'T =
-         match r with
-         | Ok s -> s
-         | _ -> failwith "boo"
+(* type Result<'T, string> with *)
+(*       member r.get () : 'T = *)
+(*          match r with *)
+(*          | Ok s -> s *)
+(*          | Error err -> failwith err; 0 *)
 
-let get (r: Result<_,_>) =
-     match r with
-     | Ok s -> s
-     | _ -> failwith "baa"
+(* let get (r: Result<_,_>) = *)
+(*      match r with *)
+(*      | Ok s -> s *)
+(*      | _ -> failwith "baa" *)
 
-let ltest () =
-    let r = Result.Ok 1
-    Result.map ((+) 2) r
+let results () =
+    let r = Ok 1
+    let er = Error "blah"
+    let r = Result.bind (fun x -> Ok (x + 1)) r
+    let r = Result.map ((+) 2) r
+    let er = Result.mapError String.length er
+    r, er
 
-[<AbstractClass>]
-type SomeT() =
-    abstract Prt: unit -> string
+(* [<AbstractClass>] *)
+(* type SomeT() = *)
+(*     abstract Prt: unit -> string *)
 
-type T2() =
-    inherit SomeT()
-    override x.Prt() = ""
+(* type T2() = *)
+(*     inherit SomeT() *)
+(*     override x.Prt() = "" *)
 
-type T3() =
-    inherit T2()
+(* type T3() = *)
+(*     inherit T2() *)
 
-let t =
-    let t = T3()
-    t.Prt()
+(* let t = *)
+(*     let t = T3() *)
+(*     t.Prt() *)
 
 (*
 [<ErlangTerm>]

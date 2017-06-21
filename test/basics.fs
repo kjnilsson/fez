@@ -293,3 +293,11 @@ let erlang_term_match =
 
 let just_string = string "a_string"
 let just_char = string 'a'
+
+let results () =
+    let r = Result.Ok 1
+    let er = Result.Error "blah"
+    let r = Result.bind (fun x -> Result.Ok (x + 1)) r
+    let r = Result.map ((+) 2) r
+    let er = Result.mapError String.length er
+    r, er

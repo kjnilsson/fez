@@ -104,11 +104,11 @@ module Compiler =
                     Some t
         | _ -> None
 
-    let (|IsResult|_|) =
+    let (|IsFSharpResult|_|) =
         function
         | TypeDefinition tdef as t
             when tdef.TryFullName =
-                Some "Microsoft.FSharp.Core.Result`2" ->
+                Some "Microsoft.FSharp.Core.FSharpResult`2" ->
                     Some t
         | _ -> None
 
@@ -522,6 +522,7 @@ module Compiler =
             let app = apply func args
             constr app,nm
         | None, f, _ -> // module call
+            printfn "modCall %A %A" argTypes (List.length exprs)
             let name = f.LogicalName
             let eeFullName = f.LogicalEnclosingEntity.FullName
             let m = litAtom eeFullName |> constr
@@ -634,6 +635,14 @@ module Compiler =
             let a1, nm = processExpr nm e
             let a2 = litAtom "undefined" |> constr
             modCall erlang equals [a1; a2] |> constr, nm
+        | B.UnionCaseTest (e, IsFSharpResult t, IsCase "Ok" c) ->
+            let a1, nm = element nm 1L e
+            let a2 = litAtom "ok" |> constr
+            modCall erlang equals [a1; a2] |> constr, nm
+        | B.UnionCaseTest (e, IsFSharpResult t, IsCase "Error" c) ->
+            let a1, nm = element nm 1L e
+            let a2 = litAtom "error" |> constr
+            modCall erlang equals [a1; a2] |> constr, nm
         | B.UnionCaseTest (e, ErlangTerm t, uc) ->
             let pat, guard = mkErlangTermCasePat nm t uc
             let alt1 = mkAlt pat guard trueExps
@@ -679,6 +688,14 @@ module Compiler =
             processExpr nm e
         | B.NewUnionCase (IsFSharpOption t, IsCase "None" c, e) ->
             constr (litAtom "undefined"), nm
+        | B.NewUnionCase (IsFSharpResult t, IsCase "Ok" c, [e]) ->
+            let a1 = litAtom "ok" |> constr
+            let a2, nm  = processExpr nm e
+            cerl.Tuple [a1; a2] |> constr, nm
+        | B.NewUnionCase (IsFSharpResult t, IsCase "Error" c, [e]) ->
+            let a1 = litAtom "error" |> constr
+            let a2, nm  = processExpr nm e
+            cerl.Tuple [a1; a2] |> constr, nm
         | B.NewUnionCase(ErlangTerm t, uc, []) as e ->
             uc.Name.ToLower() |> litAtom |> constr, nm
         | B.NewUnionCase(ErlangTerm t, uc, [arg]) as e ->
@@ -823,7 +840,13 @@ module Compiler =
             let args, nm = foldNames nm processExpr args
             let args = [arg1; cerl.List (cerl.L args) |> constr]
             modCall io format args |> constr, nm
+        | B.Application (target, _ ::_, []) ->
+            // attempt to match value created by TypeLambda
+            // it has "types" but no args
+            processExpr nm target
         | B.Application (target, _types, args) ->
+            let res = target.Type.IsUnresolved
+            printfn "application types %A %A" _types res
             let cp = match target with
                      | B.Value f ->
                         let c =
@@ -873,6 +896,7 @@ module Compiler =
             let body = mkLet unitName fezUnit body |> constr
             cerl.Lambda ([], body) |> constr, nm
         | B.Lambda (p, expr) ->
+            printfn "lambda.IstypeFunction %A" p.GenericParameters
             let v, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
             let l = cerl.Lambda ([v], body) |> constr
@@ -1003,6 +1027,7 @@ module Compiler =
 
 
     and processDecl decl = [
+      printfn "decl: %A" decl
       match decl with
       | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
           let name = ent.FullName

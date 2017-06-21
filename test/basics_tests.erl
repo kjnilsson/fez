@@ -175,3 +175,7 @@ string_to_string_test() ->
 % char_to_string_test() ->
 %     "a" = basics:just_char().
 
+
+result_test() ->
+    {{ok, 4}, {error, 4}} = basics:results(),
+    ok.
