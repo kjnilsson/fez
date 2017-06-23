@@ -1,76 +1,74 @@
 -module('Microsoft.FSharp.Collections.ListModule').
 
--export(
-    [
-        append/2,
-        average/1,
-        averageBy/2,
-        choose/2,
-        chunkBySize/2,
-        collect/2,
-        comparewith/3,
-        concat/1,
-        contains/2,
-        countBy/2,
-        distinct/1,
-        empty/0,
-        exists/2,
-        exists2/3,
-        filter/2,
-        find/2,
-        findIndex/2,
-        fold/3,
-        fold2/4,
-        foldBack/3,
-        foldBack2/4,
-        forall/2,
-        forall2/3,
-        head/1,
-        init/2,
-        isEmpty/1,
-        iter/2,
-        iter2/3,
-        iteri/2,
-        iteri2/3,
-        length/1,
-        map/2,
-        map2/3,
-        map3/4,
-        mapi/2,
-        mapi2/3,
-        max/1,
-        maxBy/2,
-        min/1,
-        minBy/2,
-        nth/2,
-        % ofArray/1,
-        % ofSeq/1,
-        % partition/1,
-        permute/2,
-        pick/2,
-        reduce/2,
-        % reduceBack/2,
-        replicate/2,
-        rev/1,
-        scan/3,
-        scanBack/3,
-        sort/1,
-        sortBy/2,
-        % sortWith/2,
-        sum/1,
-        sumBy/2,
-        tail/1,
-        % toArray/1,
-        % toSeq/1,
-        tryFind/2,
-        tryFindIndex/2,
-        tryPick/2,
-        unzip/1,
-        unzip3/1,
-        zip/2,
-        zip3/3
-    ]
-).
+-export([
+    append/2,
+    average/1,
+    averageBy/2,
+    choose/2,
+    chunkBySize/2,
+    collect/2,
+    comparewith/3,
+    concat/1,
+    contains/2,
+    countBy/2,
+    distinct/1,
+    empty/0,
+    exists/2,
+    exists2/3,
+    filter/2,
+    find/2,
+    findIndex/2,
+    fold/3,
+    fold2/4,
+    foldBack/3,
+    foldBack2/4,
+    forall/2,
+    forall2/3,
+    head/1,
+    init/2,
+    isEmpty/1,
+    iter/2,
+    iter2/3,
+    iteri/2,
+    iteri2/3,
+    length/1,
+    map/2,
+    map2/3,
+    map3/4,
+    mapi/2,
+    mapi2/3,
+    max/1,
+    maxBy/2,
+    min/1,
+    minBy/2,
+    nth/2,
+    % ofArray/1,
+    ofSeq/1,
+    partition/2,
+    permute/2,
+    pick/2,
+    reduce/2,
+    reduceBack/2,
+    replicate/2,
+    rev/1,
+    scan/3,
+    scanBack/3,
+    sort/1,
+    sortBy/2,
+    sortWith/2,
+    sum/1,
+    sumBy/2,
+    tail/1,
+    % toArray/1,
+    toSeq/1,
+    tryFind/2,
+    tryFindIndex/2,
+    tryPick/2,
+    unzip/1,
+    unzip3/1,
+    zip/2,
+    zip3/3
+]).
 
 
 append(L1, L2) ->
@@ -357,7 +355,11 @@ nth(List,N) -> lists:nth(N,List).
 % ofArray
 
 % ofSeq
+ofSeq(List) ->
+  'Microsoft.FSharp.Collections.SeqModule':toList(List).
 
+partition(Pred,List) ->
+  lists:partition(Pred,List).
 
 permute(Permute,List) ->
     case erlang:length(distinct(mapi(fun(Index,_) -> Permute(Index) end ,List))) == erlang:length(List) of
@@ -388,11 +390,31 @@ reduce(_, [H], []) ->
 reduce(Reduction, [H], [Acc]) ->
     Reduction(Acc,H);
 reduce(Reduction, [H1|[H2|T]], []) ->
-    reduce(Reduction,T, [Reduction(H2,H1)]);
+    reduce(Reduction,T, [Reduction(H1,H2)]);
 reduce(Reduction, [H1|T], [Acc]) ->
     reduce(Reduction,T, [Reduction(Acc,H1)]).
 
-% reduceBack()
+removeLast(List) ->
+  removeLast(List,[]).
+removeLast([_],Acc) ->
+  lists:reverse(Acc);
+removeLast([H|T],Acc) ->
+  removeLast(T,[H|Acc]).
+
+reduceBack(_, []) ->
+  erlang:error(badarg);
+reduceBack(_, [H]) ->
+  H;
+reduceBack(Reduce, [H|T]) ->
+  reduceBack(Reduce,removeLast([H|T]),lists:last(T)).
+
+reduceBack(_, [],State) ->
+  State;
+reduceBack(Reduce, [H|T],State) ->
+  Res = reduceBack(Reduce,T,State),
+  Res2 = Reduce(Res,H),
+  Res2.
+
 
 replicate(N,Elem) -> lists:duplicate(N,Elem).
 
@@ -417,10 +439,25 @@ sort(L) ->
 
 sortBy(Projection,List) ->
     ListProjected = map(fun(X) -> {Projection(X),X} end, List),
-    ListSorted = lists:sort(ListProjected),
+    ListSorted = lists:keysort(1,ListProjected),
     map(fun({_,X}) -> X end, ListSorted).
-    
-% sortWith
+
+
+sortWith(_, []) -> [];
+sortWith(Comparer, [H|T]) ->
+  Res = Comparer(H,H),
+  TupledList = lists:reverse(sortWith(Comparer,T,[{H,Res}],H)),
+  SortedTupledList = sortBy( fun ({_,Compared}) -> Compared end,TupledList),
+  map(fun({Elem,_}) -> Elem end, SortedTupledList).
+
+sortWith(_,[],Acc,_) ->
+  Acc;
+sortWith(Comparer,[H],Acc,Head) ->
+  [{H,Comparer(Head,H)}|Acc];
+sortWith(Comparer,[H|T],Acc,Head) ->
+  Res = Comparer(Head,H),
+  sortWith(Comparer,T,[{H,Res}|Acc],Head).
+
 
 sum(L) ->
     lists:sum(L).
@@ -437,6 +474,8 @@ tail(List) -> lists:last(List).
 % toArray
 
 % toSeq
+toSeq(List) ->
+  'Microsoft.FSharp.Collections.SeqModule':ofList(List).
 
 
 tryFind(_,[]) ->
@@ -473,4 +512,3 @@ unzip3(L) -> lists:unzip3(L).
 zip(L1,L2) -> lists:zip(L1,L2).
 
 zip3(L1,L2,L3) -> lists:zip3(L1,L2,L3).
-
