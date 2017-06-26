@@ -198,7 +198,15 @@ let inline show< ^T when ^T : (static member show : ^T -> string)> (x:^T) : stri
 
 let echo x = x
 module Nested =
+    type NestedType =
+        | NT
+        static member talk (t: NestedType) = "nestedtype.talk"
+        member x.walk () = "nestedtype.walk"
+    let nestedFunction () =
+        "nestedfunction"
+
     let echo x = x
+
     module Nested2 =
         let echo x = x
 
@@ -215,6 +223,14 @@ let nested_test () =
 
 let nested_test2 () =
     Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo
+
+let nested_test3() =
+    let n = Nested.NestedType.NT
+    Nested.NestedType.talk n,
+    n.walk (),
+    Nested.nestedFunction ()
+
+
 
 exception MyEx of string
 

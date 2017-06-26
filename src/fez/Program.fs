@@ -63,5 +63,7 @@ let main argv =
     | exn ->
         printfn "fez failed with:" // TODO: write in red to stderr
         printfn "%s" exn.Message
+        printfn "%A" exn.InnerException
+        printfn "%A" exn.StackTrace
         Environment.Exit 1
         1

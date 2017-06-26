@@ -205,11 +205,13 @@ module Compiler =
     type Ctx =
         { Module: string
           Names : Map<cerl.Var, int>
-          Functions : Map<cerl.Var, cerl.Function> }
+          Functions : Map<cerl.Var, cerl.Function>
+          Members : Set<string> } // module member FullNames
        with static member init m =
                {Module = m
                 Names = Map.empty
-                Functions = Map.empty}
+                Functions = Map.empty
+                Members = Set.empty}
 
     let safeVar incr ({Names = nameMap} as ctx) (x : cerl.Var) : cerl.Var * Ctx =
         match incr, nameMap with
@@ -327,15 +329,16 @@ module Compiler =
             |> Seq.toList
         cerl.PTuple (typeTag :: caseTag :: fields)
 
+    let mkTypeCheck (t: FSharpType) name =
+        let ln = t.TypeDefinition.LogicalName
+        match ln with
+        | "int" ->
+            cerl.ModCall((erlang, litAtom "is_integer" |> constr), [name]) |> constr
+        | "string" ->
+            cerl.ModCall((erlang, litAtom "is_list" |> constr), [name]) |> constr
+        | x -> failwithf "mkTypeCheck not impl %A" x
+
     let mkErlangTermCasePat ctx (t: FSharpType) (uc: FSharpUnionCase) =
-        let mkTypeCheck (t: FSharpType) name =
-            let ln = t.TypeDefinition.LogicalName
-            match ln with
-            | "int" ->
-                cerl.ModCall((erlang, litAtom "is_integer" |> constr), [name]) |> constr
-            | "string" ->
-                cerl.ModCall((erlang, litAtom "is_list" |> constr), [name]) |> constr
-            | x -> failwithf "mkTypeCheck not impl %A" x
         match Seq.toList uc.UnionCaseFields with
         | [] -> //no args match on atom
             uc.Name.ToLower() |> lAtomPat, cerl.defaultGuard
@@ -464,17 +467,43 @@ module Compiler =
         if f.ToString() = "type Microsoft.FSharp.Core.unit" then Some f
         else None
 
+    let safeAtom (n: string) =
+        let n = n.Replace("`", "_")
+        litAtom n |> constr
+
+    /// used for member
+    let qualifiedMember (f : FSharpMemberOrFunctionOrValue) =
+        let fe = f.LogicalEnclosingEntity
+        let name = f.LogicalName
+        let eeFullName = fe.FullName
+        let eeName = fe.CompiledName
+        let idx = eeFullName.IndexOf(eeName)
+        let mn = eeFullName.Substring(0, idx-1)
+        (* let tn = eeFullName.Substring(idx, eeFullName.Length-1) *)
+        let m = safeAtom mn
+        let f = eeName + "." + name |> safeAtom
+        m, f
+
     let traitCall name (args : cerl.Exps list) =
         let fezCore = litAtom "Fez.Core" |> constr
         let traitCall = litAtom "trait_call" |> constr
         let instance = args.[0]
         let listArgs = cerl.List(cerl.L args) |> constr
-        modCall fezCore traitCall [instance; litAtom name |> constr; listArgs]
+        modCall fezCore traitCall [instance; litString ("." + name) |> constr; listArgs]
+
+    let eraseUnit (exprs : FSharpExpr list) =
+        match exprs with
+        | [e] when e.Type.HasTypeDefinition &&
+                   e.Type.TypeDefinition.CompiledName = "unit" ->
+            []
+        | _ ->
+            exprs
 
     let rec translateCall nm callee
                           (f : FSharpMemberOrFunctionOrValue)
                           (argTypes: FSharpType list)
                           (exprs : FSharpExpr list) : (cerl.Exps * Ctx) =
+        let fe = f.LogicalEnclosingEntity
         match callee, f, exprs with
         //special case mapping + on a string to ++
         | _, Intr2Erl "+", ExprType "string" _ :: _ ->
@@ -501,39 +530,48 @@ module Compiler =
                             && e.Type.TypeDefinition.LogicalName = "string" ->
             //erase ToString on strings
             processExpr nm e
-        | callee, f, e when f.LogicalEnclosingEntity.FullName = nm.Module
-                            || (f.LogicalEnclosingEntity.IsFSharpUnion
-                                || f.LogicalEnclosingEntity.IsFSharpRecord) -> //apply to named function
-            let ee = f.LogicalEnclosingEntity
-            let exprs = match callee with
-                        | Some e -> e :: exprs
-                        | None -> exprs
+        | callee, f, e when Set.exists ((=) f.FullName) nm.Members ->
+            // local module call
             let name =
-                if ee.IsFSharpUnion || ee.IsFSharpRecord then
-                    //method on type rather than nested module
-                    ee.LogicalName + "." + f.LogicalName
-                else
+                if fe.IsFSharpModule then
                     f.LogicalName
-            let funName = litAtom name
+                else
+                    //method on type rather than nested module
+                    fe.LogicalName + "." + f.LogicalName
             //add callee as first arg if method dispatch
-            //best effort only
             let args, nm =
-                exprs
-                |> foldNames nm processExpr
-            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+                let args, nm =
+                    eraseUnit exprs
+                    |> foldNames nm processExpr
+                let args = args |> stripFezUnit |> List.map (flattenLambda [])
+                match callee with
+                | Some o ->
+                    let o, nm = processExpr nm o
+                    o :: args, nm
+                | None -> args, nm
             let numArgs = List.length args
             let func, nm = mkFunction nm name numArgs
             let func = func |> cerl.Fun |> constr
             let app = apply func args
             constr app,nm
-        | None, f, _ -> // module call
-            let name = f.LogicalName
-            let eeFullName = f.LogicalEnclosingEntity.FullName
-            let m = litAtom eeFullName |> constr
-            let f = litAtom name |> constr
-            let args, nm = foldNames nm processExpr exprs
+        | None, f, _  when fe.IsFSharp &&
+                           not fe.IsFSharpModule -> //
+            // member call on fsharp type
+            let args, nm =
+                eraseUnit exprs
+                |> foldNames nm processExpr
             // remove fez_unit
             // flatten any lambda args
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+            let m, f = qualifiedMember f
+            modCall m f args |> constr, nm
+        | None, f, _  -> //
+            // modulecall or member call on non-fsharp type e.g. System.Char
+            let m = safeAtom fe.FullName
+            let f = safeAtom f.LogicalName
+            let args, nm =
+                eraseUnit exprs
+                |> foldNames nm processExpr
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
             modCall m f args |> constr, nm
         | Some o, f, _ ->
@@ -549,23 +587,31 @@ module Compiler =
                 | [o; IsFezUnit _] -> [o]
                 | args -> args
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
-            let fe = f.LogicalEnclosingEntity
             if fe.IsInterface then
                 // use trait call for dispatch on inteface as it will use the
                 // embedded type info (if available) to dispatch the call to the right function
                 // Else we'd need a function of format: 'Module:InterfaceType.Member'
                 traitCall name args |> constr, nm
+            elif fe.IsFSharpModule then
+                //TODO ever used?
+                let m = safeAtom fe.FullName
+                let f = safeAtom name
+                modCall m f args |> constr, nm
+            elif fe.IsFSharp then
+                // member on an fsharp type
+                let m, f = qualifiedMember f
+                modCall m f args |> constr, nm
             else
                 let m =
-                    let t = nonAbbreviatedType o.Type
                     // recurse back to non abbr type name
-                    t.TypeDefinition.FullName |> litAtom |> constr
-                let f = litAtom name |> constr
+                    let t = nonAbbreviatedType o.Type
+                    t.TypeDefinition.FullName |> safeAtom
+                let f = safeAtom name
                 modCall m f args |> constr, nm
         | x ->
             failwithf "not implemented %A" x
 
-    and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>)  expr =
+    and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>) expr =
         match expr with
         | B.Let ((v, e), expr) ->
             // ignore names introduced in the variable assignment expression
@@ -718,17 +764,23 @@ module Compiler =
         | B.Let ((v, B.Call (_, (LogicalName "receive" as m), _t, [t], _)), expr) as r ->
             // generate basic structural case to for the DU type
             // then generate standard if then else
-            let cases = t.TypeDefinition.UnionCases
             let alias, nm = uniqueName nm
             let mkAliasP p = cerl.PAlias (cerl.Alias (alias, p))
 
             let alts =
-                cases
-                |> Seq.map (fun c ->
-                    let pat = mkStructuralUnionCasePat t c |> mkAliasP
-                    cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard,
-                                    constr (cerl.Var alias))))
-                |> Seq.toList
+                if t.IsTupleType then
+                    // TODO: support tuples
+                    //attempt tuple match with type based match?
+                    failwith "Cannot currently receive tuples. Use DUs to define receive contracts."
+                elif t.TypeDefinition.IsFSharpUnion then
+                    t.TypeDefinition.UnionCases
+                    |> Seq.map (fun c ->
+                        let pat = mkStructuralUnionCasePat t c |> mkAliasP
+                        cerl.Constr (cerl.Alt (cerl.Pat pat, cerl.defaultGuard,
+                                        constr (cerl.Var alias))))
+                    |> Seq.toList
+                else
+                    failwithf "unsupported receive type %A" t
             let infinity =
                 let expiry = litAtom "infinity" |> constr
                 let body = litAtom "true" |> constr
@@ -976,17 +1028,17 @@ module Compiler =
                 Some (Seq.toList a.ConstructorArguments, m)
             | _ -> None
 
-        let mkFun ctx (memb: FSharpMemberOrFunctionOrValue) ps lambda funDef =
+        let functionName (ctx: Ctx) (memb: FSharpMemberOrFunctionOrValue)=
             let ee = memb.LogicalEnclosingEntity
             let logicalName = memb.LogicalName
-            let name =
-                if ee.FullName = ctx.Module then
-                    logicalName
-                else
-                    // we're probably a member on a type
-                    // make qualified name
-                    sprintf "%s.%s" (ee.LogicalName) logicalName
-            let f, nm = mkFunction ctx name (List.length ps)
+            if ee.FullName = ctx.Module then
+                logicalName
+            else
+                // we're probably a member on a type
+                // make qualified name
+                sprintf "%s.%s" ee.LogicalName logicalName
+
+        let funModDecl ctx (f: cerl.Function) (memb: FSharpMemberOrFunctionOrValue) lambda =
             let fdecl =
                 if memb.Accessibility.IsPublic then Some f
                 else None
@@ -997,12 +1049,17 @@ module Compiler =
                                   Parameters ps, _expr) ->
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
             let e2 = litAtom ((snd args.[1]) :?> string) |> constr
-            let args, nm = foldNames ctx (safeVar true) ps
+            let args, ctx = foldNames ctx (safeVar true) ps
             let e = modCall e1 e2 ((args |> List.map (cerl.Var >> constr))) |> constr
             let l = lambda args e
-            mkFun nm memb ps l funDef
+            let f, ctx =
+                let name = functionName ctx memb
+                mkFunction ctx name (List.length ps)
+            funModDecl ctx  f memb l,
+                {ctx with Members = Set.add (memb.FullName) ctx.Members}
         | MemberOrFunctionOrValue(memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
+            let ee = memb.LogicalEnclosingEntity
             let atts = Seq.toList memb.Attributes
             let ps =
                 match ps with
@@ -1011,20 +1068,27 @@ module Compiler =
                     [o]
                 | _ -> ps
             let args, nm = foldNames ctx (safeVar true) ps
-            let e, nm = processExpr ctx expr
-            let l = lambda args e
+            // need function context for recursion
             //TODO top level functions are unique so no need to prefix
-            mkFun nm memb ps l funDef
+            let f, ctx =
+                let name = functionName ctx memb
+                mkFunction ctx name (List.length ps)
+            //process expression after function has been added to context
+            //such that it can be found for recursive calls
+            let e, ctx = processExpr ctx expr
+            let lambda = lambda args e
+            funModDecl ctx f memb lambda,
+                {ctx with Members = Set.add (memb.FullName) ctx.Members}
         | Entity(ent, declList) when ent.IsFSharpRecord ->
-            Skip
+            Skip, ctx
         | Entity(ent, declList) when ent.IsFSharpUnion ->
-            Skip
+            Skip, ctx
         | Entity(ent, declList) as e when ent.IsFSharpModule ->
-            processDecl e |> Mod
+            processDecl e |> Mod, ctx
         | Entity(ent, declList)  ->
-            Skip
+            Skip, ctx
         | MemberOrFunctionOrValue(x, _, _) ->
-            Skip
+            Skip, ctx
         | x -> failwithf "cannot process %A " x
 
 
@@ -1033,8 +1097,13 @@ module Compiler =
       match decl with
       | Entity(ent, implFileDecls) when ent.IsFSharpModule ->
           let name = ent.FullName
-          let ctx = Ctx.init name
-          let modDecls = List.map (processModDecl ctx) implFileDecls
+          let ictx = Ctx.init name
+          let modDecls, ctx =
+              implFileDecls
+              |> List.fold (fun (decs, ctx) d ->
+                  let f, {Members = ms} = processModDecl ctx d
+                  f :: decs, {ictx with Members = ms}) ([], ictx)
+          let modDecls = List.rev modDecls
           let (funs, funDefs) =
               modDecls
               |> List.choose (function

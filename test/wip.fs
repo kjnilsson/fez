@@ -34,9 +34,6 @@ open Fez.Core
 (*     use o = O *)
 (*     (o :> IPrt).Prt() *)
 
-(* type Test2 = *)
-(*     | Test2 *)
-(*     static member prt (t: Test2) = "test2" *)
 
 (* let str() = *)
 (*     string "hi" *)
@@ -58,9 +55,50 @@ open Fez.Core
 (*      | Ok s -> s *)
 (*      | _ -> failwith "baa" *)
 
-let explore() =
-    not true
+(* let explore() = *)
+(*     let s = Set.empty *)
+(*     let m = Map.empty *)
+(*     m.Add (1, 2) *)
 
+module N =
+    type NTest2 =
+        | N
+        static member talk (t: NTest2) = "ntest2"
+        member x.barf () = "ntest2b"
+
+    let nt  () = ""
+
+type Banana () =
+    member x.eat() = 0
+
+
+type Test2 =
+    | Test2
+    static member prt (t: Test2) = "test2"
+    member x.print () = "test2b"
+
+let tt() =
+    let t = Test2
+    Test2.prt t,
+    t.print(),
+    let b = Banana()
+    b.eat(),
+    N.NTest2.talk N.N,
+    N.N.barf (),
+    N.nt
+
+let date () =
+    let d = System.DateTime.Now
+    d.AddDays 1.
+
+let explore (l: int list) =
+    l.[5]
+
+(* let send_receive() = *)
+(*     (self()) <! (1, "hi") *)
+(*     match receive<int * string>() with *)
+(*     | 1, s -> s *)
+(*     | n, _ -> string n *)
 
 
 (* let results () = *)

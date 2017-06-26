@@ -137,6 +137,7 @@ trait_call_test() ->
 nested_module_test() ->
     "test" = basics:nested_test(),
     "test2" = basics:nested_test2(),
+    {"nestedtype.talk", "nestedtype.walk", "nestedfunction"} = basics:nested_test3(),
     ok.
 
 try_with_test() ->

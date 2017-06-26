@@ -40,4 +40,5 @@ let call outputPath files =
     proc.WaitForExit()
     if proc.ExitCode <> 0 then
         let lines = String.Concat(errors |> Seq.map (fun e -> Environment.NewLine + e))
-        failwithf "erlc failed: %s" lines
+        let olines = String.Concat(out |> Seq.map (fun e -> Environment.NewLine + e))
+        failwithf "erlc failed: %s" (lines + olines)
