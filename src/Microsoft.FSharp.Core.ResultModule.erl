@@ -6,8 +6,7 @@
          bind/2
         ]).
 
-% Result is represented
-
+% Result representation
 -type result() :: {ok, term()} | {error, term()}.
 
 -export_type([result/0]).

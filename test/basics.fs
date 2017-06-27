@@ -344,3 +344,16 @@ let math_ops() =
     max 2 3,
     min 2 3,
     round 1.4
+
+[<ModCall("erlang", "put")>]
+let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None
+
+[<ModCall("erlang", "get")>]
+let get<'a, 'b> (k: 'a) : 'b option = None
+
+let fast_integer_loop() =
+    let key = "fast_integer_loop_key"
+    for i in 0..10 do
+        put key i |> ignore
+    get key
+

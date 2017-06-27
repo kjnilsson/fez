@@ -59,7 +59,7 @@ open Fez.Core
 (*     let s = Set.empty *)
 (*     let m = Map.empty *)
 (*     m.Add (1, 2) *)
-
+(*
 module N =
     type NTest2 =
         | N
@@ -86,13 +86,31 @@ let tt() =
     N.NTest2.talk N.N,
     N.N.barf (),
     N.nt
+*)
+
+[<ModCall("erlang", "put")>]
+let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None
+
+[<ModCall("erlang", "get")>]
+let get<'a, 'b> (k: 'a) : 'b option = None
+
+let forloop() =
+    let key = "fast_integer_loop_key"
+    for i in 0..10 do
+        printfn "put %A" i
+        put key i |> ignore
+    get key
+    (* for i in 0..2..10 do *)
+    (*     printfn "%A" i *)
 
 let date () =
     let d = System.DateTime.Now
     d.AddDays 1.
 
-let explore (l: int list) =
-    l.[5]
+let set () =
+    let s = Set.empty
+    s.Add 42
+
 
 (* let send_receive() = *)
 (*     (self()) <! (1, "hi") *)

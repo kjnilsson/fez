@@ -191,3 +191,6 @@ pipes_test() ->
 
 math_ops_test() ->
     {3,1,2,3,2,1} = basics:math_ops().
+
+fast_integer_loop_test() ->
+    10 = basics:fast_integer_loop().

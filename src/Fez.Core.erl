@@ -18,3 +18,9 @@ trait_call(Instance, Function, Args) ->
     {Mod, Type} = element(1, Instance),
     F = list_to_atom(atom_to_list(Type) ++ Function),
     erlang:apply(Mod, F, Args).
+
+fast_integer_loop(From, To, _Fun) when From > To ->
+    unit;
+fast_integer_loop(From, To, Fun) ->
+    [Fun(I) || I <- lists:seq(From, To)],
+    unit.

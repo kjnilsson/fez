@@ -484,8 +484,13 @@ module Compiler =
         let f = eeName + "." + name |> safeAtom
         m, f
 
+    let fezCore = litAtom "Fez.Core" |> constr
+
+    let fastIntegerLoop fe te e =
+        let fil = litAtom "fast_integer_loop" |> constr
+        modCall fezCore fil [fe;te;e]
+
     let traitCall name (args : cerl.Exps list) =
-        let fezCore = litAtom "Fez.Core" |> constr
         let traitCall = litAtom "trait_call" |> constr
         let instance = args.[0]
         let listArgs = cerl.List(cerl.L args) |> constr
@@ -1013,6 +1018,15 @@ module Compiler =
             e, nm
             // why did we need this to be a Noop?
             (* cerl.Noop (lambda [] e |> constr) |> constr, nm *)
+        | B.FastIntegerForLoop(f, t, B.Lambda(p, expr), isDown) ->
+            let v, nm = safeVar true nm p.LogicalName
+            let body, nm = processExpr nm expr
+            let l = cerl.Lambda ([v], body) |> constr
+            let fe, nm = processExpr nm f
+            let te, nm = processExpr nm t
+            fastIntegerLoop fe te l |> constr, nm
+
+
         | x -> failwithf "not implemented %A" x
 
     type ModDecl =
