@@ -801,6 +801,15 @@ module Compiler =
         | B.Let ((v, e), expr) when not v.IsMutable ->
             // TODO: check if creating a ref cell and warn about
             // limitations
+            let t = nonAbbreviatedType e.Type
+            if t.HasTypeDefinition && t.TypeDefinition.FullName =
+                "Microsoft.FSharp.Core.FSharpRef`1" then
+                    eprintf """
+WARNING: uses of ref cells cannot be automatically garbage collected as they
+are backed by the process dictionary.  To manually release the entry in the
+process dictionary call the Ref.release() method.
+
+"""
             // ignore names introduced in the variable assignment expression
             let ass, _ = processExpr nm e
             let ass = flattenLambda [] ass

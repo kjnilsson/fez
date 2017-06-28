@@ -44,24 +44,10 @@ let tt() =
     N.nt
 *)
 
-[<ErlangTerm>]
-type TestTerm =
-    | Second
-    (* | Integer of int *)
-    | Tuple of int * int
-
-let erlang_term_match =
-    function
-    | Second -> "second"
-    (* | Integer i -> sprintf "%i" i *)
-    | Tuple (a, b) -> "ab"
-
-(* let refcell() = *)
-(*     let v = ref 4 *)
-(*     v := 5 *)
-(*     let result = v.Value, !v *)
-(*     v.release() |> ignore *)
-(*     result *)
+let refcell() =
+    let v = ref 4
+    v := 5
+    v.Value, !v, v.release()
 
 (* let mutate() = *)
 (*     let mutable v = 4 *)
