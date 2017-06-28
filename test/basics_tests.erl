@@ -194,3 +194,10 @@ math_ops_test() ->
 
 fast_integer_loop_test() ->
     10 = basics:fast_integer_loop().
+
+ref_cell_test() ->
+    Pre = get(),
+    {5,5,5} = basics:refcell(),
+    % ensure nothing is leaked in the process dictionary
+    Pre = get().
+

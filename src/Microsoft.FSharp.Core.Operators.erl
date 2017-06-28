@@ -6,8 +6,10 @@
          op_Modulus/2,
          % &&& bitwise AND
          % op_Multiply/2, % (*)
+         op_ColonEquals/2, % update ref value
          op_ComposeRight/2,
          op_ComposeLeft/2,
+         op_Dereference/1,
          op_PipeLeft/2,
          op_PipeLeft2/3,
          op_PipeLeft3/4,
@@ -68,7 +70,7 @@
          %nullArg/1,
          %pown/2,
          raise/1,
-         %ref/1,
+         ref/1,
          reraise/0,
          'round'/1,
          %sbyte/1,
@@ -95,6 +97,19 @@
          unbox/1
          %using/2
         ]).
+
+-type ref() :: {ref, reference()}.
+
+
+
+% ref setter
+op_ColonEquals({ref, Key}, Value) ->
+    put(Key, Value),
+    unit.
+
+% ref getter
+op_Dereference({ref, Key}) ->
+    get(Key).
 
 op_ComposeRight(F,G) ->
     fun (X) -> G(F(X)) end.
@@ -193,6 +208,15 @@ min(A, B) ->
 
 raise(E) ->
     throw(E).
+
+
+-spec ref(term()) -> ref().
+ref(V) ->
+    R = make_ref(),
+    put(R, V),
+    {ref, R}.
+
+
 
 reraise() ->
     % pick exception out of process dictionary

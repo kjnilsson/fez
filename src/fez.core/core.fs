@@ -47,3 +47,10 @@ type ModCall(modu: string, func: string) =
 
 type ErlangTerm() =
     inherit System.Attribute()
+
+
+type Ref<'a> with
+    member r.release () : 'a =
+        failwith "should never get here"
+
+

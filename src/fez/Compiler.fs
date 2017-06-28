@@ -359,10 +359,14 @@ module Compiler =
             let patterns = nameChecks |> List.map (fst >> cerl.PVar)
             let falseExp = litAtom "false"
             let trueExp = litAtom "true"
+            let third, ctx = uniqueName ctx
             let wrap ifExps thenExps =
                 let a1 = altExpr (boolPat "true", cerl.defaultGuard, constr thenExps)
                 let a2 = altExpr (boolPat "false", cerl.defaultGuard, constr falseExp)
-                cerl.Case(ifExps, [a1;a2])
+                // OTP 20 seems to require this third case. why?
+                let a3 = altExpr (cerl.Pat (cerl.PVar third), cerl.defaultGuard,
+                                  constr (cerl.Var third))
+                cerl.Case(ifExps, [a1;a2; a3])
 
             let state = wrap (List.head checks) trueExp
             let res =
@@ -794,7 +798,9 @@ module Compiler =
             let n, nm = safeVar true nm v.LogicalName
             let letExps, nm = processExpr nm expr
             mkLet n receive letExps |> constr, nm
-        | B.Let ((v, e), expr) ->
+        | B.Let ((v, e), expr) when not v.IsMutable ->
+            // TODO: check if creating a ref cell and warn about
+            // limitations
             // ignore names introduced in the variable assignment expression
             let ass, _ = processExpr nm e
             let ass = flattenLambda [] ass
@@ -1018,7 +1024,7 @@ module Compiler =
             e, nm
             // why did we need this to be a Noop?
             (* cerl.Noop (lambda [] e |> constr) |> constr, nm *)
-        | B.FastIntegerForLoop(f, t, B.Lambda(p, expr), isDown) ->
+        | B.FastIntegerForLoop(f, t, B.Lambda(p, expr), isUp) ->
             let v, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
             let l = cerl.Lambda ([v], body) |> constr
@@ -1026,6 +1032,7 @@ module Compiler =
             let te, nm = processExpr nm t
             fastIntegerLoop fe te l |> constr, nm
 
+        (* | B.WhileLoop(trueExpr, expr) -> *)
 
         | x -> failwithf "not implemented %A" x
 

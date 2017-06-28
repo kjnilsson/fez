@@ -1,25 +1,6 @@
 module wip
 open Fez.Core
 
-(* let tryF f = *)
-(*     try *)
-(*         f () *)
-(*     finally *)
-(*         printfn "finally" *)
-(* let xs = *)
-(*     [1..10] *)
-(*     |> List.map (fun x -> x * x) *)
-(*     |> List.filter (fun x -> x % 2 = 0) *)
-(*     |> List.choose (fun x -> if x % 3 = 0 then Some (x * 10) else None) *)
-(*     |> List.sum *)
-
-(*
- erlang terms:
-     * cases with no values are lowercased and interpreted as atoms
-     * cases with one value are interpreted as the value
-     * cases with more than one value are interpreted as tuples
- *)
-
 (* type IPrt = *)
 (*     abstract member Prt: unit ->  string *)
 
@@ -34,31 +15,6 @@ open Fez.Core
 (*     use o = O *)
 (*     (o :> IPrt).Prt() *)
 
-
-(* let str() = *)
-(*     string "hi" *)
-
-(* let private sys_char() = *)
-(*     System.Char.IsDigit '1' *)
-
-(* let char_member (c: char) = *)
-(*     (c :> obj).ToString() *)
-
-(* type Result<'T, string> with *)
-(*       member r.get () : 'T = *)
-(*          match r with *)
-(*          | Ok s -> s *)
-(*          | Error err -> failwith err; 0 *)
-
-(* let get (r: Result<_,_>) = *)
-(*      match r with *)
-(*      | Ok s -> s *)
-(*      | _ -> failwith "baa" *)
-
-(* let explore() = *)
-(*     let s = Set.empty *)
-(*     let m = Map.empty *)
-(*     m.Add (1, 2) *)
 (*
 module N =
     type NTest2 =
@@ -88,28 +44,44 @@ let tt() =
     N.nt
 *)
 
-[<ModCall("erlang", "put")>]
-let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None
+[<ErlangTerm>]
+type TestTerm =
+    | Second
+    (* | Integer of int *)
+    | Tuple of int * int
 
-[<ModCall("erlang", "get")>]
-let get<'a, 'b> (k: 'a) : 'b option = None
+let erlang_term_match =
+    function
+    | Second -> "second"
+    (* | Integer i -> sprintf "%i" i *)
+    | Tuple (a, b) -> "ab"
 
-let forloop() =
-    let key = "fast_integer_loop_key"
-    for i in 0..10 do
-        printfn "put %A" i
-        put key i |> ignore
-    get key
-    (* for i in 0..2..10 do *)
-    (*     printfn "%A" i *)
+(* let refcell() = *)
+(*     let v = ref 4 *)
+(*     v := 5 *)
+(*     let result = v.Value, !v *)
+(*     v.release() |> ignore *)
+(*     result *)
 
-let date () =
-    let d = System.DateTime.Now
-    d.AddDays 1.
+(* let mutate() = *)
+(*     let mutable v = 4 *)
+(*     v <- 5 *)
+(*     v *)
 
-let set () =
-    let s = Set.empty
-    s.Add 42
+(* [<ModCall("erlang", "put")>] *)
+(* let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None *)
+
+(* [<ModCall("erlang", "get")>] *)
+(* let get<'a, 'b> (k: 'a) : 'b option = None *)
+
+(* let forloop() = *)
+(*     let key = "fast_integer_loop_key" *)
+(*     for i in 0..10 do *)
+(*         printfn "put %A" i *)
+(*         put key i |> ignore *)
+(*     get key *)
+
+
 
 
 (* let send_receive() = *)
@@ -171,6 +143,7 @@ let estuff =
     | Integer i -> sprintf "%i" i
     | SomeTuple (i, s) -> sprintf "%i %s" i s
     | _ -> "def"
+
 *)
 (* [<ModCall("erlang", "round")>] *)
 (* let erlang_round (n: float) = *)

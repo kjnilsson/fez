@@ -357,3 +357,9 @@ let fast_integer_loop() =
         put key i |> ignore
     get key
 
+// ref cells are backed by the process dictionary and have to be manually
+// released Ref.release() does return the release value.
+let refcell() =
+    let v = ref 4
+    v := 5
+    v.Value, !v, v.release()
