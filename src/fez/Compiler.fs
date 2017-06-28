@@ -39,7 +39,7 @@ module Util =
             (* | FileExists localLib path -> path *)
             | ref -> failwithf "Cannot locate reference %s" ref
         [|
-            // "--define:DEBUG"
+            "--define:FEZ"
             "--noframework"
             "--nologo"
             "--simpleresolution"

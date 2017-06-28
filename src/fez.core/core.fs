@@ -51,8 +51,8 @@ type ErlangTerm() =
 
 type Ref<'a> with
     member r.release () : 'a option =
-        failwith "should never get here"
+        Some r.Value
 
 type System.Lazy<'a> with
-    member r.release () : 'a option =
-        failwith "should never get here"
+    member l.release () : 'a option =
+        Some l.Value
