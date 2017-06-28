@@ -203,3 +203,6 @@ ref_cell_test() ->
 
 ce_test() ->
     6 = basics:maybe_just_maybe().
+
+lazy_test() ->
+    {false, 5, true, 5, 5, undefined} = basics:so_lazy().
