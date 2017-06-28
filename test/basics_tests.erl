@@ -201,3 +201,5 @@ ref_cell_test() ->
     % ensure nothing is leaked in the process dictionary
     Pre = get().
 
+ce_test() ->
+    6 = basics:maybe_just_maybe().

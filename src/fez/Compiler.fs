@@ -799,8 +799,7 @@ module Compiler =
             let letExps, nm = processExpr nm expr
             mkLet n receive letExps |> constr, nm
         | B.Let ((v, e), expr) when not v.IsMutable ->
-            // TODO: check if creating a ref cell and warn about
-            // limitations
+            // check if creating a ref cell and warn about limitations
             let t = nonAbbreviatedType e.Type
             if t.HasTypeDefinition && t.TypeDefinition.FullName =
                 "Microsoft.FSharp.Core.FSharpRef`1" then
@@ -1093,7 +1092,10 @@ process dictionary call the Ref.release() method.
             let atts = Seq.toList memb.Attributes
             let ps =
                 match ps with
-                | [o; x] when memb.IsMember && memb.IsInstanceMember ->
+                | [o; x] when memb.IsMember && memb.IsInstanceMember
+                                && x.StartsWith("unit") ->
+                    // TODO: there must be a better way to detect if the
+                    // second arg is unit
                     //remove unit on member call
                     [o]
                 | _ -> ps

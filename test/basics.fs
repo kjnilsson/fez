@@ -363,3 +363,21 @@ let refcell() =
     let v = ref 4
     v := 5
     v.Value, !v, v.release()
+
+type MaybeBuilder() =
+    member __.Bind (x, f) =
+        match x with
+        | None -> None
+        | Some a -> f a
+    member __.Return x =
+        Some x
+
+let maybe = new MaybeBuilder()
+
+let maybe_just_maybe() =
+    let o = Some 5
+    maybe {
+        let! o = o
+        return o + 1 }
+
+
