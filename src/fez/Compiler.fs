@@ -30,6 +30,7 @@ module Util =
         let fsharpCoreLib = typeof<Microsoft.FSharp.Core.MeasureAttribute>.GetTypeInfo().Assembly.Location
         let fezCoreLib = typeof<Fez.Core.Pid>.GetTypeInfo().Assembly.Location
         let systemCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
+        let systemLinqLib = typeof<System.Linq.IQueryable>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(systemCoreLib)
         let sysLib name = Path.Combine(sysPath, name + ".dll")
         (* let localLib name = Path.Combine(localPath, name + ".dll") *)
@@ -54,6 +55,8 @@ module Util =
             "-r:" + resolve "System.Collections"
             "-r:" + resolve "System.Diagnostics.Debug"
             "-r:" + resolve "System.IO"
+            "-r:" + resolve "System.Linq"
+            "-r:" + resolve "System.Linq.Expressions"
             "-r:" + resolve "System.Reflection"
             "-r:" + resolve "System.Runtime"
             "-r:" + resolve "System.Runtime.Numerics"
@@ -801,8 +804,8 @@ module Compiler =
         | B.Let ((v, e), expr) when not v.IsMutable ->
             // check if creating a ref cell and warn about limitations
             let t = nonAbbreviatedType e.Type
-            if t.HasTypeDefinition && t.TypeDefinition.FullName =
-                "Microsoft.FSharp.Core.FSharpRef`1" then
+            if t.HasTypeDefinition && t.TypeDefinition.TryFullName =
+                (Some "Microsoft.FSharp.Core.FSharpRef`1") then
                     eprintf """
 WARNING: uses of ref cells cannot be automatically garbage collected as they
 are backed by the process dictionary.  To manually release the entry in the
@@ -882,18 +885,8 @@ process dictionary call the Ref.release() method.
         | B.Coerce(a, e) ->
             processExpr nm e
         | B.NewObject(IsCtor m, types, exprs) ->
-            let expss, nm = foldNames nm processExpr exprs
-            let expss = expss
-                        |> List.choose (function
-                                        | cerl.Exp ae -> Some ae
-                                        // should be a fold so we can use all Exps
-                                        (* | cerl.Exps ae -> Some ae *)
-                                        | _ -> None)
-            match expss with
-            | [e] ->
-                cerl.Exp e, nm
-            | _ ->
-                cerl.Exps (cerl.Constr expss), nm
+            // just delegate a call to the "ctor" function here
+            translateCall nm None m types exprs
         // horrendously specific match to intercept printfn and sprintf
         | B.Application (B.Let ((_, B.Call (None, (LogicalName "printfn" | LogicalName "sprintf" as p), _, _,
                                             [B.Coerce (_, B.NewObject (_, _, [B.Const (:? string as str, t)]))])), _letBody),
@@ -1039,6 +1032,9 @@ process dictionary call the Ref.release() method.
             let fe, nm = processExpr nm f
             let te, nm = processExpr nm t
             fastIntegerLoop fe te l |> constr, nm
+        | B.Quote (e) ->
+            processExpr nm e
+
 
         (* | B.WhileLoop(trueExpr, expr) -> *)
 

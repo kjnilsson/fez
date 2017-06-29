@@ -44,11 +44,28 @@ let tt() =
     N.nt
 *)
 
+let rarray() =
+    let l = new ResizeArray<_>()
+    l
+(* let query1 = *)
+(*     query { *)
+(*         for n in seq {0..10} do *)
+(*             where (n > 5) *)
+(*             select (n - 1) *)
+(*     } *)
+
+let bigints () =
+    bigint 1
+
+
+#if FEZ
+#else
 let so_lazy() =
     let l = lazy 5
     //false, 5, true, 5, 5, undefined
     l.IsValueCreated, l.Force(), l.IsValueCreated,
         l.Value, l.release(), l.release()
+#endif
 
 (* let mutate() = *)
 (*     let mutable v = 4 *)

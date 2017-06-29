@@ -385,3 +385,11 @@ let so_lazy() =
     //false, 5, true, 5, 5, undefined
     l.IsValueCreated, l.Force(), l.IsValueCreated,
         l.Value, l.release(), l.release()
+
+
+let seq_query =
+    query {
+        for n in seq {0..9} do
+            where (n > 5)
+            select (n + 1)
+    } |> Seq.toList

@@ -3,3 +3,5 @@
 
 printfn(S) ->
     io:format(S, []).
+
+query() -> query_builder.

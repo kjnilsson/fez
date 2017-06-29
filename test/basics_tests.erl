@@ -206,3 +206,7 @@ ce_test() ->
 
 lazy_test() ->
     {false, 5, true, 5, 5, undefined} = basics:so_lazy().
+
+seq_query_test() ->
+    [7,8,9,10] = basics:seq_query(),
+    ok.
