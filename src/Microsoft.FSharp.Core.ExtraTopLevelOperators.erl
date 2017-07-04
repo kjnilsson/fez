@@ -1,7 +1,15 @@
 -module('Microsoft.FSharp.Core.ExtraTopLevelOperators').
--compile(export_all).
+-export([
+         async/0,
+         printfn/1,
+         query/0
+        ]).
+
+% dummy value for async builder
+async() -> ok.
 
 printfn(S) ->
     io:format(S, []).
 
-query() -> query_builder.
+query() -> ok.
+

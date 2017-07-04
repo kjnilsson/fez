@@ -393,3 +393,20 @@ let seq_query =
             where (n > 5)
             select (n + 1)
     } |> Seq.toList
+
+
+let getAsyncValue =
+    async {
+        return "async_value" }
+
+let async_start p =
+    async {
+        let! v = getAsyncValue
+        p <! v }
+    |> Async.Start
+
+let async_run =
+    async {
+        let! v = getAsyncValue
+        return "run_" + v }
+    |> Async.RunSynchronously

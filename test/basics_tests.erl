@@ -210,3 +210,12 @@ lazy_test() ->
 seq_query_test() ->
     [7,8,9,10] = basics:seq_query(),
     ok.
+
+async_test() ->
+    "run_async_value" = basics:async_run(),
+    basics:async_start(self()),
+    receive
+        "async_value" -> ok
+    after 1000 ->
+          exit(async_test_timeout)
+    end.

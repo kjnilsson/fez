@@ -1,52 +1,31 @@
 module wip
 open Fez.Core
 
-(* type IPrt = *)
-(*     abstract member Prt: unit ->  string *)
+[<ModCall("erlang", "put")>]
+let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None
 
-(* type Obj = *)
-(*     | O *)
-(*     interface System.IDisposable with *)
-(*         member x.Dispose() =  printfn "dispose" *)
-(*     interface IPrt with *)
-(*         member x.Prt() = "O" *)
+let get_v =
+    async {
+        return "value" }
 
-(* let interfaces () = *)
-(*     use o = O *)
-(*     (o :> IPrt).Prt() *)
+(* let async_start p = *)
+(*     let cts = new System.Threading.CancellationTokenSource() *)
+(*     async { *)
+(*         let! v = get_v *)
+(*         p <! v } *)
+(*     |> fun a -> Async.Start(a, cts.Token) *)
 
-(*
-module N =
-    type NTest2 =
-        | N
-        static member talk (t: NTest2) = "ntest2"
-        member x.barf () = "ntest2b"
+let assync =
+    async {
+        let! v = get_v
+        return v}
+    |> Async.RunSynchronously
 
-    let nt  () = ""
+(* let rarray() = *)
+(*     let l = new ResizeArray<_>() *)
+(*     l.Add 1 *)
+(*     l *)
 
-type Banana () =
-    member x.eat() = 0
-
-
-type Test2 =
-    | Test2
-    static member prt (t: Test2) = "test2"
-    member x.print () = "test2b"
-
-let tt() =
-    let t = Test2
-    Test2.prt t,
-    t.print(),
-    let b = Banana()
-    b.eat(),
-    N.NTest2.talk N.N,
-    N.N.barf (),
-    N.nt
-*)
-
-let rarray() =
-    let l = new ResizeArray<_>()
-    l
 (* let query1 = *)
 (*     query { *)
 (*         for n in seq {0..10} do *)
@@ -54,8 +33,8 @@ let rarray() =
 (*             select (n - 1) *)
 (*     } *)
 
-let bigints () =
-    bigint 1
+(* let bigints () = *)
+(*     bigint 1 *)
 
 
 #if FEZ
