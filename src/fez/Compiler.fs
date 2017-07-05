@@ -233,6 +233,9 @@ module Compiler =
         // TODO: append some random stuff to reduce the chance of name collisions
         safeVar true nm "fez"
 
+    let mapArgs (ctx : Ctx) f xs =
+        List.map (f ctx >> fst) xs
+
     let foldNames (ctx : Ctx) f xs =
         let xs, ctx = List.fold (fun (xs, nm) x ->
                                     let x, nm = f nm x
@@ -590,7 +593,8 @@ module Compiler =
             // attempt dispatch on object member by adding the "dispatchee"
             // as the first argument to the function
             let name = f.LogicalName
-            let args, nm = foldNames nm processExpr (o :: exprs)
+            // each args expression needs its own context
+            let args = mapArgs nm processExpr (o :: exprs)
             // flatten any lambda args
             let stripFezUnit args =
                 // first arg is the dispatch object

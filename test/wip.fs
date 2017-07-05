@@ -8,14 +8,15 @@ let get_v =
     async {
         return "value" }
 
-(* let async_start p = *)
-(*     let cts = new System.Threading.CancellationTokenSource() *)
-(*     async { *)
-(*         let! v = get_v *)
-(*         p <! v } *)
-(*     |> fun a -> Async.Start(a, cts.Token) *)
+let async_start_child () =
+    async {
+        let! p = Async.StartChild (async {
+                                        do! Async.Sleep 50
+                                        return self()})
+        return! p }
+    |> Async.RunSynchronously
 
-let assync =
+let async_run () =
     async {
         let! v = get_v
         return v}

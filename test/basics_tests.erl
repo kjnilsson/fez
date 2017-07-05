@@ -218,4 +218,8 @@ async_test() ->
         "async_value" -> ok
     after 1000 ->
           exit(async_test_timeout)
-    end.
+    end,
+    ChildPid = basics:async_start_child(),
+    ?assert(is_pid(ChildPid)),
+    ?assert(self() /= ChildPid),
+    ok.

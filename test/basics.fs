@@ -410,3 +410,11 @@ let async_run =
         let! v = getAsyncValue
         return "run_" + v }
     |> Async.RunSynchronously
+
+let async_start_child () =
+    async {
+        let! p = Async.StartChild (
+                        async { do! Async.Sleep 50
+                                return self()})
+        return! p }
+    |> Async.RunSynchronously
