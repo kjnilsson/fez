@@ -45,11 +45,15 @@
                            _ = run(Async),
                            {async, return, unit}
                    end}.
+
 % TODO: can we use token somehow to cancel the async? how would we register?
-'FSharpAsync.Start'(Async, _Token) ->
+'FSharpAsync.Start'(Async, undefined) ->
     % run async on another process
     _ = spawn(fun () -> run(Async) end),
-    ok.
+    ok;
+'FSharpAsync.Start'(_Async, _Token) ->
+    exit({fez_unsupported, "FSharpAsync.Start cannot be used with"
+                           "a CancellationToken"}).
 
 'FSharpAsync.StartChild'(Async, Timeout0) ->
     Timeout = timeout(Timeout0),
@@ -76,8 +80,11 @@
              {async, return, array:from_list([run(A) || A <- Results])}
      end}.
 
-'FSharpAsync.RunSynchronously'(Async, _Timeout, _Token) ->
-    run(Async).
+'FSharpAsync.RunSynchronously'(Async, undefined, undefined) ->
+    run(Async);
+'FSharpAsync.RunSynchronously'(_Async, _Timeout, _Token) ->
+    exit({fez_unsupported, "FSharpAsync.RunSynchronously cannot be used with"
+                           "a Timeout or CancellationToken"}).
 
 run({async, zero, unit}) -> ok;
 run({async, delay, Fun}) ->
