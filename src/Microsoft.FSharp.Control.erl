@@ -59,7 +59,6 @@
     Timeout = timeout(Timeout0),
     {async, delay,
      fun () ->
-             % TODO: monitor or link to process
              Ref = make_ref(),
              _Pid = spawn_child(Async, Ref, Timeout),
              % return an async that receives the result
@@ -113,7 +112,9 @@ receive_n_results(Ref, Timeout, N, Results) ->
 receive_result(Ref, Timeout) ->
     receive
         {result, Ref, Result} ->
-            {async, return, Result}
+            {async, return, Result};
+        {error, Ref, Err} ->
+            throw(Err)
     after Timeout ->
               throw(async_start_child_timeout)
     end.
@@ -121,15 +122,21 @@ receive_result(Ref, Timeout) ->
 spawn_child(Async, Ref, Timeout) ->
     Spawner = self(),
     Pid = spawn(fun () ->
-                  % run async
-                  Result = run(Async),
-                  receive
-                      {get_result, Ref, From} ->
-                          From ! {result, Ref, Result}
-                  after Timeout ->
-                            Spawner ! async_start_child_timeout
-                  end
-          end),
+                        % run async
+                        Reply = try run(Async) of
+                                    R -> {result, Ref, R}
+                                catch
+                                    _:_ = Err ->
+                                        {error, Ref, Err}
+                                end,
+
+                        receive
+                            {get_result, Ref, From} ->
+                                From ! Reply
+                        after Timeout ->
+                                  Spawner ! {error, Ref, async_start_child_timeout}
+                        end
+                end),
      Pid ! {get_result, Ref, self()},
      Pid.
 

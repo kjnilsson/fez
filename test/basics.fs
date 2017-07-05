@@ -437,3 +437,11 @@ let async_ignore key =
         }
     |> Async.Ignore
     |> Async.RunSynchronously
+
+let async_start_child_err () =
+    async {
+        let! p = Async.StartChild (async {
+                                        failwith "bah"
+                                        return self()})
+        return! p }
+    |> Async.RunSynchronously
