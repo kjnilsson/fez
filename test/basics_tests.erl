@@ -228,5 +228,7 @@ async_test() ->
     ?assert(is_pid(C2)),
     ?assert(self() /= C1),
     ?assert(self() /= C2),
+    basics:async_ignore(async_key),
+    ?assert("my_value" =:= get(async_key)),
 
     ok.

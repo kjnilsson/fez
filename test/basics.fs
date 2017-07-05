@@ -430,3 +430,10 @@ let async_parallel () =
                                            return! get_pid}]
         return results}
     |> Async.RunSynchronously
+
+let async_ignore key =
+    async {
+        return! async { return put key "my_value"}
+        }
+    |> Async.Ignore
+    |> Async.RunSynchronously

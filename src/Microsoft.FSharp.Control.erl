@@ -9,6 +9,7 @@
         'FSharpAsync.Start'/2,
         'FSharpAsync.StartChild'/2,
         'FSharpAsync.RunSynchronously'/3,
+        'FSharpAsync.Ignore'/1,
         'FSharpAsync.Sleep'/1,
         'FSharpAsync.Parallel'/1
         ]).
@@ -39,6 +40,11 @@
                            {async, return, unit}
                    end}.
 
+'FSharpAsync.Ignore'(Async) ->
+    {async, delay, fun() ->
+                           _ = run(Async),
+                           {async, return, unit}
+                   end}.
 % TODO: can we use token somehow to cancel the async? how would we register?
 'FSharpAsync.Start'(Async, _Token) ->
     % run async on another process
@@ -64,12 +70,29 @@
              Ref = make_ref(),
              Asyncs = ?SEQMOD:toList(Asyncs0),
              [_Pid = spawn_child(Async, Ref, Timeout) || Async <- Asyncs],
-             % return an async that receives the result
              Results = receive_n_results(Ref, Timeout,
                                          length(Asyncs),
                                          []),
              {async, return, array:from_list([run(A) || A <- Results])}
      end}.
+
+'FSharpAsync.RunSynchronously'(Async, _Timeout, _Token) ->
+    run(Async).
+
+run({async, zero, unit}) -> ok;
+run({async, delay, Fun}) ->
+    run(Fun());
+run({async, return, V}) ->
+    V;
+run({async, return_from, A}) ->
+    run(A);
+run({async, bind, {Async, Binder}}) ->
+    case run(Async) of
+        unit ->
+            run(Binder());
+        V ->
+            run(Binder(V))
+    end.
 
 timeout(undefined) -> infinity;
 timeout(T) -> T.
@@ -104,20 +127,3 @@ spawn_child(Async, Ref, Timeout) ->
      Pid.
 
 
-'FSharpAsync.RunSynchronously'(Async, _Timeout, _Token) ->
-    run(Async).
-
-run({async, zero, unit}) -> ok;
-run({async, delay, Fun}) ->
-    run(Fun());
-run({async, return, V}) ->
-    V;
-run({async, return_from, A}) ->
-    run(A);
-run({async, bind, {Async, Binder}}) ->
-    case run(Async) of
-        unit ->
-            run(Binder());
-        V ->
-            run(Binder(V))
-    end.
