@@ -418,3 +418,15 @@ let async_start_child () =
                                 return self()})
         return! p }
     |> Async.RunSynchronously
+
+let get_pid =
+    async { return self()}
+
+let async_parallel () =
+    async {
+        let! results = Async.Parallel [get_pid;
+                                       async {
+                                           do! Async.Sleep 20
+                                           return! get_pid}]
+        return results}
+    |> Async.RunSynchronously

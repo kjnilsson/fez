@@ -9,9 +9,11 @@
         'FSharpAsync.Start'/2,
         'FSharpAsync.StartChild'/2,
         'FSharpAsync.RunSynchronously'/3,
-        'FSharpAsync.Sleep'/1
-
+        'FSharpAsync.Sleep'/1,
+        'FSharpAsync.Parallel'/1
         ]).
+
+-define(SEQMOD, 'Microsoft.FSharp.Collections.SeqModule').
 
 % -type async() :: {async, delay | return | bind | zero, term()}.
 
@@ -33,7 +35,7 @@
 
 'FSharpAsync.Sleep'(T) ->
     {async, delay, fun() ->
-                           timer:sleep(T),
+                           ok = timer:sleep(T),
                            {async, return, unit}
                    end}.
 
@@ -44,37 +46,63 @@
     ok.
 
 'FSharpAsync.StartChild'(Async, Timeout0) ->
-    Timeout = case Timeout0 of
-                  undefined -> infinity;
-                  _ -> Timeout0
-              end,
-    Ref = make_ref(),
+    Timeout = timeout(Timeout0),
     {async, delay,
      fun () ->
-             Self = self(),
              % TODO: monitor or link to process
-             Pid = spawn(fun () ->
-                                 % run async
-                                 Result = run(Async),
-                                 receive
-                                     {get_result, Ref, From} ->
-                                         From ! {result, Ref, Result}
-                                 after Timeout ->
-                                           Self ! async_start_child_timeout
-                                 end
-                         end),
-             Pid ! {get_result, Ref, Self},
+             Ref = make_ref(),
+             _Pid = spawn_child(Async, Ref, Timeout),
              % return an async that receives the result
              {async, return,
-              {async, delay, fun () ->
-                                    receive
-                                        {result, Ref, Result} ->
-                                            {async, return, Result}
-                                    after Timeout ->
-                                              throw(async_start_child_timeout)
-                                    end
-                            end}}
+              {async, delay, fun () -> receive_result(Ref, Timeout) end}}
      end}.
+
+'FSharpAsync.Parallel'(Asyncs0) ->
+    Timeout = infinity, % why doesn't Parallel have a timeout?
+    {async, delay,
+     fun () ->
+             Ref = make_ref(),
+             Asyncs = ?SEQMOD:toList(Asyncs0),
+             [_Pid = spawn_child(Async, Ref, Timeout) || Async <- Asyncs],
+             % return an async that receives the result
+             Results = receive_n_results(Ref, Timeout,
+                                         length(Asyncs),
+                                         []),
+             {async, return, array:from_list([run(A) || A <- Results])}
+     end}.
+
+timeout(undefined) -> infinity;
+timeout(T) -> T.
+
+receive_n_results(_Ref, _Timeout, 0, Results) ->
+    Results;
+receive_n_results(Ref, Timeout, N, Results) ->
+    Result = receive_result(Ref, Timeout),
+    receive_n_results(Ref, Timeout, N-1, [Result | Results]).
+
+receive_result(Ref, Timeout) ->
+    receive
+        {result, Ref, Result} ->
+            {async, return, Result}
+    after Timeout ->
+              throw(async_start_child_timeout)
+    end.
+
+spawn_child(Async, Ref, Timeout) ->
+    Spawner = self(),
+    Pid = spawn(fun () ->
+                  % run async
+                  Result = run(Async),
+                  receive
+                      {get_result, Ref, From} ->
+                          From ! {result, Ref, Result}
+                  after Timeout ->
+                            Spawner ! async_start_child_timeout
+                  end
+          end),
+     Pid ! {get_result, Ref, self()},
+     Pid.
+
 
 'FSharpAsync.RunSynchronously'(Async, _Timeout, _Token) ->
     run(Async).

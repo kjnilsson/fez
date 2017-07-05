@@ -222,4 +222,11 @@ async_test() ->
     ChildPid = basics:async_start_child(),
     ?assert(is_pid(ChildPid)),
     ?assert(self() /= ChildPid),
+    [C1, C2] = array:to_list(basics:async_parallel()),
+    io:format("C1 ~p ~p~n", [C1, C2]),
+    ?assert(is_pid(C1)),
+    ?assert(is_pid(C2)),
+    ?assert(self() /= C1),
+    ?assert(self() /= C2),
+
     ok.
