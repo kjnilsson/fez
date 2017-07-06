@@ -59,7 +59,7 @@ That said there are aspects of the imperative and object oriented paradigms that
 can be covered, to a certain extent.
 
 The most up-to-date resource for what language construct are covered is to look
-at [basics.fs](basics.fs) but it is fairly unstructured.
+at [basics.fs](test/basics.fs) but it is fairly unstructured.
 
 The lists below list feature that are implemented to one of the following
 degrees:
@@ -199,9 +199,10 @@ degrees:
 
 ### How can I help?
 
-Try it! Read [thoughts.md](https://github.com/kjnilsson/fez/blob/HEAD/thoughts.md)
-and raise issues with the smallest possible repro program bearing in mind that the current
-status is little more than a proof of concept and soooooooo many fundamental parts
-are not yet implemented.
+Try it! Right now I need people to try stuff and find constructs that break or
+don't behave as expected. Especially for functional code. Once you find something
+(and I'm sure you will) please raise an issue including the smallest possible
+repro code.
 
-Code is also welcome of course.
+Code is also welcome of course. Especially for the standard library erlang
+modules.
