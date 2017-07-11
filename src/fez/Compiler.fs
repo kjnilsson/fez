@@ -611,12 +611,11 @@ module Compiler =
                 let m = safeAtom fe.FullName
                 modCall m f args |> constr, nm
             else
-                //TODO ever used?
                 let m = safeAtom fe.FullName
                 let f = safeAtom name
                 modCall m f args |> constr, nm
         | x ->
-            failwithf "not implemented %A" x
+            failwithf "translateCall: not implemented %A" x
 
     and processDT nm (expsLookup : Map<int, FSharpMemberOrFunctionOrValue list * FSharpExpr>) expr =
         match expr with
@@ -1086,7 +1085,6 @@ process dictionary call the Ref.release() method.
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
             let ee = memb.EnclosingEntity
             let ctx = Ctx.init ee.FullName
-            printfn "ee %A %A" ee.FullName memb.IsExtensionMember
             let functionName = functionName memb
             let ps =
                 match ps with
