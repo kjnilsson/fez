@@ -1,61 +1,40 @@
--module('Microsoft.FSharp.Control').
+-module('Microsoft.FSharp.Control.FSharpAsync').
 
 -export([
-        'FSharpAsyncBuilder.Delay'/2,
-        'FSharpAsyncBuilder.Return'/2,
-        'FSharpAsyncBuilder.ReturnFrom'/2,
-        'FSharpAsyncBuilder.Bind'/3,
-        'FSharpAsyncBuilder.Zero'/1,
-        'FSharpAsync.Start'/2,
-        'FSharpAsync.StartChild'/2,
-        'FSharpAsync.RunSynchronously'/3,
-        'FSharpAsync.Ignore'/1,
-        'FSharpAsync.Sleep'/1,
-        'FSharpAsync.Parallel'/1
+        'Start'/2,
+        'StartChild'/2,
+        'RunSynchronously'/3,
+        'Ignore'/1,
+        'Sleep'/1,
+        'Parallel'/1
         ]).
 
 -define(SEQMOD, 'Microsoft.FSharp.Collections.SeqModule').
 
 % -type async() :: {async, delay | return | bind | zero, term()}.
 
-'FSharpAsyncBuilder.Delay'(_B, Fun) ->
-    {async, delay, Fun}.
-
-'FSharpAsyncBuilder.Return'(_B, V) ->
-    {async, return, V}.
-
-'FSharpAsyncBuilder.ReturnFrom'(_B, Async) ->
-    %% is this right?
-    {async, return_from, Async}.
-
-'FSharpAsyncBuilder.Bind'(_B, Async, Binder) ->
-    {async, bind, {Async, Binder}}.
-
-'FSharpAsyncBuilder.Zero'(_B) ->
-    {async, zero, unit}.
-
-'FSharpAsync.Sleep'(T) ->
+'Sleep'(T) ->
     {async, delay, fun() ->
                            ok = timer:sleep(T),
                            {async, return, unit}
                    end}.
 
-'FSharpAsync.Ignore'(Async) ->
+'Ignore'(Async) ->
     {async, delay, fun() ->
                            _ = run(Async),
                            {async, return, unit}
                    end}.
 
 % TODO: can we use token somehow to cancel the async? how would we register?
-'FSharpAsync.Start'(Async, undefined) ->
+'Start'(Async, undefined) ->
     % run async on another process
     _ = spawn(fun () -> run(Async) end),
     ok;
-'FSharpAsync.Start'(_Async, _Token) ->
-    exit({fez_unsupported, "FSharpAsync.Start cannot be used with"
+'Start'(_Async, _Token) ->
+    exit({fez_unsupported, "Start cannot be used with"
                            "a CancellationToken"}).
 
-'FSharpAsync.StartChild'(Async, Timeout0) ->
+'StartChild'(Async, Timeout0) ->
     Timeout = timeout(Timeout0),
     {async, delay,
      fun () ->
@@ -66,7 +45,7 @@
               {async, delay, fun () -> receive_result(Ref, Timeout) end}}
      end}.
 
-'FSharpAsync.Parallel'(Asyncs0) ->
+'Parallel'(Asyncs0) ->
     Timeout = infinity, % why doesn't Parallel have a timeout?
     {async, delay,
      fun () ->
@@ -79,10 +58,10 @@
              {async, return, array:from_list([run(A) || A <- Results])}
      end}.
 
-'FSharpAsync.RunSynchronously'(Async, undefined, undefined) ->
+'RunSynchronously'(Async, undefined, undefined) ->
     run(Async);
-'FSharpAsync.RunSynchronously'(_Async, _Timeout, _Token) ->
-    exit({fez_unsupported, "FSharpAsync.RunSynchronously cannot be used with"
+'RunSynchronously'(_Async, _Timeout, _Token) ->
+    exit({fez_unsupported, "RunSynchronously cannot be used with"
                            "a Timeout or CancellationToken"}).
 
 run({async, zero, unit}) -> ok;

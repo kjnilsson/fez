@@ -35,26 +35,44 @@ let main argv =
         let files = argv |> Array.map (|FullPath|)
         let checker = FSharpChecker.Create(keepAssemblyContents = true)
         let options = projectOptions checker files
+        let outputDir file =
+            match !outputPath with
+            | Some path -> path
+            | None ->
+                let dir = Path.GetDirectoryName file
+                outputPath := Some dir
+                dir
+
+        let outDir = outputDir files.[0]
+
         let outFiles =
             [ for file in files do
                 let fileContents = File.ReadAllText file
-                let dir =
-                    match !outputPath with
-                    | Some path -> path
-                    | _ ->
-                        let dir = Path.GetDirectoryName file
-                        outputPath := Some dir
-                        dir
                 let res = check checker options file fileContents
-                for implFile in res.AssemblyContents.ImplementationFiles do
-                    for decl in implFile.Declarations do
-                        (* failwithf "%A" decl *)
-                        let modules = processDecl decl
-                        for n, m in modules do
-                            (* printfn "final ast: %A" m *)
-                            yield
-                                cerl.prt m
-                                |> Erlc.writeErlangCoreFile dir n ]
+                for i in res.AssemblyContents.ImplementationFiles do
+                    for decl in i.Declarations do
+                        yield! doDecl decl ]
+            |> List.groupBy (fun fd -> fd.Module)
+            |> List.map (fun (modName, fds) ->
+                let m = toModule modName fds
+                cerl.prt m
+                |> Erlc.writeErlangCoreFile outDir modName
+                )
+
+        (* let outFiles = *)
+        (*     [ for file in files do *)
+        (*         let fileContents = File.ReadAllText file *)
+        (*         let dir = outputDir file *)
+        (*         let res = check checker options file fileContents *)
+        (*         for implFile in res.AssemblyContents.ImplementationFiles do *)
+        (*             for decl in implFile.Declarations do *)
+        (*                 (1* failwithf "%A" decl *1) *)
+        (*                 let modules = processDecl decl *)
+        (*                 for n, m in modules do *)
+        (*                     (1* printfn "final ast: %A" m *1) *)
+        (*                     yield *)
+        (*                         cerl.prt m *)
+        (*                         |> Erlc.writeErlangCoreFile dir n ] *)
 
         if not noBeam then
             Erlc.call !outputPath outFiles

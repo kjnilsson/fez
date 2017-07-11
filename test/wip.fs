@@ -1,26 +1,112 @@
 module wip
 open Fez.Core
 
-[<ModCall("erlang", "put")>]
-let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None
+(* [<ModCall("erlang", "put")>] *)
+(* let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None *)
 
-let get_v =
-    async {
-        return "value" }
+(* [<ModCall("erlang", "get")>] *)
+(* let get<'a, 'b> (k: 'a) : 'b option = None *)
 
-let async_start_child () =
-    async {
-        let! p = Async.StartChild (async {
-                                        do! Async.Sleep 50
-                                        return self()})
-        return! p }
-    |> Async.RunSynchronously
+let refcell() =
+    let v = ref 4
+    v := 5
+    v.Value, !v, v.release()
 
-let async_run () =
-    async {
-        let! v = get_v
-        return v}
-    |> Async.RunSynchronously
+let so_lazy() =
+    let l = lazy 5
+    //false, 5, true, 5, 5, undefined
+    l.IsValueCreated, l.Force(), l.IsValueCreated,
+        l.Value, l.release(), l.release()
+
+type Thing = T
+    with
+    static member think (t: Thing) = "think"
+    member t.thonk() = "thonk"
+
+[<AutoOpen>]
+module Inner =
+    type Thing
+        with static member thank (t: Thing) = "thank"
+
+module Thing =
+    let thunk (t: Thing) =
+        Thing.think t
+
+type List<'a>
+    with
+        static member prt (l : List<_>) = "list"
+        member l.print() = "mlist"
+
+let testThing () =
+    Thing.thunk T,
+    Thing.think T,
+    Thing.thank T,
+    T.thonk(),
+    List.prt [],
+    [].print()
+
+let echo x = x
+module Nested =
+    type NestedType =
+        | NT
+        static member talk (t: NestedType) = "nestedtype.talk"
+        member x.walk () = "nestedtype.walk"
+    let nestedFunction () =
+        "nestedfunction"
+
+    let echo x = x
+
+    module Nested2 =
+        let echo x = x
+
+type Test =
+    | Test with
+    static member prt (t: Test) = "test"
+
+type Test2 =
+    | Test2
+    static member prt (t: Test2) = "test2"
+
+let nested_test () =
+    Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo
+
+let nested_test2 () =
+    Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo
+
+let nested_test3() =
+    let n = Nested.NestedType.NT
+    Nested.NestedType.talk n,
+    n.walk (),
+    Nested.nestedFunction ()
+// TODO: generate the `get_Message` members for "fsharp" exceptions?
+(* exception SomeEx of string *)
+
+(* let explore () = *)
+(*     try raise (exn "oops") with *)
+(*     | :? SomeEx as e -> e.Message *)
+(*     | e -> e.Message + "system.exception" *)
+
+(* let get_v = *)
+(*     async { *)
+(*         return self() } *)
+
+(* let evt () = *)
+(*     let evt = new Event<_>() *)
+(*     Event.add (fun e -> printfn "hi") evt *)
+
+(* let async_start_child_err () = *)
+(*     async { *)
+(*         let! p = Async.StartChild (async { *)
+(*                                         failwith "bah" *)
+(*                                         return self()}) *)
+(*         return! p } *)
+(*     |> Async.RunSynchronously *)
+
+(* let async_run () = *)
+(*     async { *)
+(*         let! v = get_v *)
+(*         return v} *)
+(*     |> Async.RunSynchronously *)
 
 (* let rarray() = *)
 (*     let l = new ResizeArray<_>() *)
@@ -46,26 +132,6 @@ let so_lazy() =
     l.IsValueCreated, l.Force(), l.IsValueCreated,
         l.Value, l.release(), l.release()
 #endif
-
-(* let mutate() = *)
-(*     let mutable v = 4 *)
-(*     v <- 5 *)
-(*     v *)
-
-(* [<ModCall("erlang", "put")>] *)
-(* let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None *)
-
-(* [<ModCall("erlang", "get")>] *)
-(* let get<'a, 'b> (k: 'a) : 'b option = None *)
-
-(* let forloop() = *)
-(*     let key = "fast_integer_loop_key" *)
-(*     for i in 0..10 do *)
-(*         printfn "put %A" i *)
-(*         put key i |> ignore *)
-(*     get key *)
-
-
 
 
 (* let send_receive() = *)
@@ -99,7 +165,7 @@ let so_lazy() =
 (*     t.Prt() *)
 
 (*
- *
+
 [<ErlangTerm>]
 type TimeUnit =
     | Second
@@ -158,10 +224,9 @@ let bah () =
     (o :> IPrt).Prt()
 
 *)
-    (*
-exception SomeEx of string * int
 
-let ex() =
-    let x = SomeEx("banan", 12) :?> SomeEx
-    x.Message
-    *)
+(* exception SomeEx of string * int *)
+
+(* let ex() = *)
+(*     let x = SomeEx("banan", 12) :?> SomeEx *)
+(*     x.Message *)

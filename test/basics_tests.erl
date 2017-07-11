@@ -21,9 +21,9 @@ pat_mat_test() ->
     undefined = basics:fixed_len_list([1, 2, 1]).
 
 basic_records_test() ->
-    {{'basics','person'}, "karl", 39} = P = basics:make_person("karl", 39),
+    {'basics.person', "karl", 39} = P = basics:make_person("karl", 39),
     39 = basics:age(P),
-    {{'basics', 'person'}, "karl", 40} = basics:have_birthday(P).
+    {'basics.person', "karl", 40} = basics:have_birthday(P).
 
 basics_sum_test() ->
     6 = basics:sum(3),
@@ -131,7 +131,7 @@ let_rec_test() ->
     [1,2,3,5] = basics:let_rec([1,2,3,5,8]).
 
 trait_call_test() ->
-    B = basics:'B.make'("hello"),
+    B = 'basics.B':make("hello"),
     "hello" = basics:show(B).
 
 nested_module_test() ->
