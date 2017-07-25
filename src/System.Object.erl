@@ -5,4 +5,4 @@
         ]).
 
 '.ctor'() ->
-    unit.
+    {'System.Object', [], #{}}.

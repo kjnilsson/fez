@@ -232,3 +232,6 @@ async_test() ->
     ?assert("my_value" =:= get(async_key)),
     ?assertException(throw, {exception, "bah"}, basics:async_start_child_err()),
     ok.
+
+oo_test() ->
+    {"A", "B", "C", "C", "C", "C", "C"} = 'basics.Objects':testOO().

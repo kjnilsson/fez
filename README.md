@@ -165,10 +165,8 @@ degrees:
 * Interface implementations on records and unions [`complete`]
 * `use` expressions [`complete`]
 
-* constructors [`partial`]
-
-    A `.ctor` function is generated but currently returns `unit` rather than
-    a data structure to hold field data etc.
+* constructors [`prototype`]
+* inheritance [`prototype`]
 
 #### Imperative
 

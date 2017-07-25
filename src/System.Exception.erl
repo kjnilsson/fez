@@ -6,4 +6,4 @@
 
 '.ctor'(Msg) ->
     % record structure
-    {{'System', 'Exception'}, Msg}.
+    {'System.Exception', Msg}.

@@ -1,90 +1,146 @@
 module wip
-open Fez.Core
+(* open Fez.Core *)
 
 (* [<ModCall("erlang", "put")>] *)
 (* let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None *)
 
 (* [<ModCall("erlang", "get")>] *)
 (* let get<'a, 'b> (k: 'a) : 'b option = None *)
+(* let refcell() = *)
+(*     let v = ref 4 *)
+(*     v := 5 *)
+(*     v.Value, !v, v.release() *)
 
-let refcell() =
-    let v = ref 4
-    v := 5
-    v.Value, !v, v.release()
+(* let so_lazy() = *)
+(*     let l = lazy 5 *)
+(*     //false, 5, true, 5, 5, undefined *)
+(*     l.IsValueCreated, l.Force(), l.IsValueCreated, *)
+(*         l.Value, l.release(), l.release() *)
 
-let so_lazy() =
-    let l = lazy 5
-    //false, 5, true, 5, 5, undefined
-    l.IsValueCreated, l.Force(), l.IsValueCreated,
-        l.Value, l.release(), l.release()
+(* type Thing = T *)
+(*     with *)
+(*     static member think (t: Thing) = "think" *)
+(*     member t.thonk() = "thonk" *)
 
-type Thing = T
-    with
-    static member think (t: Thing) = "think"
-    member t.thonk() = "thonk"
+(* [<AutoOpen>] *)
+(* module Inner = *)
+(*     type Thing *)
+(*         with static member thank (t: Thing) = "thank" *)
 
-[<AutoOpen>]
-module Inner =
-    type Thing
-        with static member thank (t: Thing) = "thank"
+(* module Thing = *)
+(*     let thunk (t: Thing) = *)
+(*         Thing.think t *)
 
-module Thing =
-    let thunk (t: Thing) =
-        Thing.think t
+(* type List<'a> *)
+(*     with *)
+(*         static member prt (l : List<_>) = "list" *)
+(*         member l.print() = "mlist" *)
 
-type List<'a>
-    with
-        static member prt (l : List<_>) = "list"
-        member l.print() = "mlist"
+(* let testThing () = *)
+(*     Thing.thunk T, *)
+(*     Thing.think T, *)
+(*     Thing.thank T, *)
+(*     T.thonk(), *)
+(*     List.prt [], *)
+(*     [].print() *)
 
-let testThing () =
-    Thing.thunk T,
-    Thing.think T,
-    Thing.thank T,
-    T.thonk(),
-    List.prt [],
-    [].print()
+(* let echo x = x *)
+(* module Nested = *)
+(*     type NestedType = *)
+(*         | NT *)
+(*         static member talk (t: NestedType) = "nestedtype.talk" *)
+(*         member x.walk () = "nestedtype.walk" *)
+(*     let nestedFunction () = *)
+(*         "nestedfunction" *)
 
-let echo x = x
-module Nested =
-    type NestedType =
-        | NT
-        static member talk (t: NestedType) = "nestedtype.talk"
-        member x.walk () = "nestedtype.walk"
-    let nestedFunction () =
-        "nestedfunction"
+(*     let echo x = x *)
 
-    let echo x = x
+(*     module Nested2 = *)
+(*         let echo x = x *)
 
-    module Nested2 =
-        let echo x = x
+(* type Test = *)
+(*     | Test with *)
+(*     static member prt (t: Test) = "test" *)
 
-type Test =
-    | Test with
-    static member prt (t: Test) = "test"
+(* type Test2 = *)
+(*     | Test2 *)
+(*     static member prt (t: Test2) = "test2" *)
 
-type Test2 =
-    | Test2
-    static member prt (t: Test2) = "test2"
+(* let nested_test () = *)
+(*     Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo *)
 
-let nested_test () =
-    Test.prt Test |> Nested.Nested2.echo |> Nested.echo |> echo
+(* let nested_test2 () = *)
+(*     Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo *)
 
-let nested_test2 () =
-    Test2.prt Test2 |> Nested.Nested2.echo |> Nested.echo |> echo
-
-let nested_test3() =
-    let n = Nested.NestedType.NT
-    Nested.NestedType.talk n,
-    n.walk (),
-    Nested.nestedFunction ()
+(* let nested_test3() = *)
+(*     let n = Nested.NestedType.NT *)
+(*     Nested.NestedType.talk n, *)
+(*     n.walk (), *)
+(*     Nested.nestedFunction () *)
 // TODO: generate the `get_Message` members for "fsharp" exceptions?
-(* exception SomeEx of string *)
+
+(* exception ExWithOverriddeMessage of int * string *)
+(*     with *)
+(*     override x.Message with get() = x.Data1 *)
+
+(* exception BasicException of string *)
 
 (* let explore () = *)
 (*     try raise (exn "oops") with *)
-(*     | :? SomeEx as e -> e.Message *)
-(*     | e -> e.Message + "system.exception" *)
+(*     | :? ExWithOverriddeMessage as e -> *)
+(*         e.Message *)
+(*     | :? BasicException as e -> *)
+(*         e.Message *)
+(*     | e -> *)
+(*         e.Message + "system.exception" *)
+
+type O (s:  string) =
+    let f = "A"
+    member __.Test () = f + s
+
+
+type O2 () =
+    inherit O("O2")
+    let f = "yey"
+    member __.Test() = f
+
+let testO() =
+    let o = O2()
+    o.Test()
+
+type A () =
+    let f = "A"
+    let f2 = "A2"
+    let f3 = f2 + "A3"
+    abstract member Test: unit -> string
+    default a.Test() = f
+    member x.TestIt () =
+        // call own abstact method
+        x.Test()
+
+type B () =
+    inherit A()
+    override x.Test () = "B"
+
+type C () =
+    inherit B()
+    override x.Test () = "C"
+
+type D () =
+    inherit C()
+
+let testOO () =
+    let a = A()
+    let b = B()
+    let c = C()
+    let d = D()
+    // ("A", "B", "C", "C", "C", "C", "C")
+    a.Test(), b.Test(), c.Test(), (c :> A).Test(), d.Test(), (d :> A).Test(), d.TestIt()
+
+
+(* let ex() = *)
+(*     let x = SomeEx(12, "msg") :?> SomeEx *)
+(*     x.Message *)
 
 (* let get_v = *)
 (*     async { *)
@@ -124,14 +180,14 @@ let nested_test3() =
 (*     bigint 1 *)
 
 
-#if FEZ
-#else
-let so_lazy() =
-    let l = lazy 5
-    //false, 5, true, 5, 5, undefined
-    l.IsValueCreated, l.Force(), l.IsValueCreated,
-        l.Value, l.release(), l.release()
-#endif
+(* #if FEZ *)
+(* #else *)
+(* let so_lazy() = *)
+(*     let l = lazy 5 *)
+(*     //false, 5, true, 5, 5, undefined *)
+(*     l.IsValueCreated, l.Force(), l.IsValueCreated, *)
+(*         l.Value, l.release(), l.release() *)
+(* #endif *)
 
 
 (* let send_receive() = *)
@@ -225,8 +281,3 @@ let bah () =
 
 *)
 
-(* exception SomeEx of string * int *)
-
-(* let ex() = *)
-(*     let x = SomeEx("banan", 12) :?> SomeEx *)
-(*     x.Message *)

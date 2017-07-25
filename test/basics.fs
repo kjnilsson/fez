@@ -445,3 +445,34 @@ let async_start_child_err () =
                                         return self()})
         return! p }
     |> Async.RunSynchronously
+
+
+module Objects =
+    type A () =
+        let f = "A"
+        let f2 = "A2"
+        let f3 = f2 + "A3"
+        abstract member Test: unit -> string
+        default a.Test() = f
+        member x.TestIt () =
+            // call own abstact method
+            x.Test()
+
+    type B () =
+        inherit A()
+        override x.Test () = "B"
+
+    type C () =
+        inherit B()
+        override x.Test () = "C"
+
+    type D () =
+        inherit C()
+
+    let testOO () =
+        let a = A()
+        let b = B()
+        let c = C()
+        let d = D()
+        // ("A", "B", "C", "C", "C", "C", "C")
+        a.Test(), b.Test(), c.Test(), (c :> A).Test(), d.Test(), (d :> A).Test(), d.TestIt()

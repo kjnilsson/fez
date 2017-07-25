@@ -419,6 +419,11 @@ module Compiler =
         let idx = idx+1L |> cerl.LInt
         modCall erlang element [cerl.Lit idx |> constr; e]
 
+    let tupleSet idx e v =
+        let setelement = litAtom "setelement" |> constr
+        let idx = idx+1L |> cerl.LInt
+        modCall erlang setelement [cerl.Lit idx |> constr; e; v]
+
     let toLowerString (o:obj) =
         o.ToString().ToLower()
 
@@ -503,6 +508,12 @@ module Compiler =
         let listArgs = cerl.List(cerl.L args) |> constr
         modCall fezCore traitCall [instance; litAtom name |> constr; listArgs]
 
+    let multiDispatch name (args : cerl.Exps list) =
+        let multi = litAtom "multi_dispatch" |> constr
+        let instance = args.[0]
+        let listArgs = cerl.List(cerl.L args) |> constr
+        modCall fezCore multi [instance; litAtom name |> constr; listArgs]
+
     let eraseUnit (exprs : FSharpExpr list) =
         match exprs with
         | [e] when e.Type.HasTypeDefinition &&
@@ -511,8 +522,28 @@ module Compiler =
         | _ ->
             exprs
 
+    let rec allBaseTypes (t: FSharpType) = [
+        match t.TypeDefinition.BaseType with
+        | Some bt when bt.HasTypeDefinition ->
+            let bt = nonAbbreviatedType bt
+            match bt.TypeDefinition.TryFullName with
+            | Some fn -> yield fn
+            | None ->
+                yield bt.TypeDefinition.QualifiedName
+            yield! allBaseTypes bt
+        | Some bt ->
+            yield bt.ToString()
+            yield! allBaseTypes bt
+        | None -> () ]
+
     let memberFunctionName (f:  FSharpMemberOrFunctionOrValue) =
         sprintf "%s.%s" f.LogicalEnclosingEntity.LogicalName f.LogicalName |> safeAtom
+
+    //hacky way to check if a type is a library type and thus not implemented
+    //in the same way as custom types
+    let isStandardLibraryType (fe: FSharpEntity) =
+        fe.FullName.StartsWith("Microsoft") ||
+        fe.FullName.StartsWith("System.")
 
     let rec translateCall nm callee
                           (f : FSharpMemberOrFunctionOrValue)
@@ -601,16 +632,24 @@ module Compiler =
             let args = args
                        |> stripFezUnit
                        |> List.map (flattenLambda [])
+
+            let oType = nonAbbreviatedType o.Type
             if fe.IsInterface then
                 // use trait call for dispatch on inteface as it will use the
                 // embedded type info (if available) to dispatch the call to the right function
                 // Else we'd need a function of format: 'Module:InterfaceType.Member'
                 traitCall name args |> constr, nm
+            elif fe.IsClass && not <| isStandardLibraryType fe  then
+                // how to distinquish between standard sealed apis
+                multiDispatch name args |> constr, nm
             elif f.IsExtensionMember then
                 let f = memberFunctionName f
                 let m = safeAtom fe.FullName
                 modCall m f args |> constr, nm
             else
+                let bts = allBaseTypes oType
+                //TODO check if fe is different from o.Type
+                // if so we may be dispatching on a super type
                 let m = safeAtom fe.FullName
                 let f = safeAtom name
                 modCall m f args |> constr, nm
@@ -806,12 +845,24 @@ are backed by the process dictionary.  To manually release the entry in the
 process dictionary call the Ref.release() method.
 
 """
+
             // ignore names introduced in the variable assignment expression
             let ass, _ = processExpr nm e
             let ass = flattenLambda [] ass
             let v', nm = safeVar true nm v.LogicalName
             let next, nm = processExpr nm expr
             mkLet v' ass next |> constr, nm
+        | B.FSharpFieldSet (Some o, t, f, e) ->
+            failwithf "FSharpFieldSet not supported"
+            (* let td = e.Type.TypeDefinition *)
+            (* let tupleIndex = *)
+            (*     t.TypeDefinition.FSharpFields *)
+            (*     |> Seq.findIndex ((=) f) *)
+            (*     |> (+) 1 *)
+            (*     |> int64 *)
+            (* let e, nm = processExpr nm e *)
+            (* let this = cerl.Var "_this" |> constr *)
+            (* tupleSet tupleIndex this e |> constr, nm *)
         | B.IfThenElse (fi, neht, esle) as ite ->
             //plain if then else without decision tree
             let ifExps, nm = processExpr nm fi
@@ -824,12 +875,22 @@ process dictionary call the Ref.release() method.
             let l = List.mapi (fun i x -> i, x) branches |> Map
             let e, nm = processDT nm l ite
             constr e, nm
+        | B.FSharpFieldGet (Some e, t, fld) when e.Type.TypeDefinition.IsClass ->
+            let td = e.Type.TypeDefinition
+            let fld = td.FullName + "." + fld.Name |> litAtom |> constr
+            let fieldGet = "field_get" |> litAtom |> constr
+            let e, nm = processExpr nm e
+            modCall fezCore fieldGet [fld; e] |> constr, nm
         | B.FSharpFieldGet (Some e, t, fld) ->
+            let td = e.Type.TypeDefinition
+            let offset =
+                if e.Type.TypeDefinition.IsClass then 2
+                else 1
             // TODO when would the expr be None here
             let tupleIndex =
                 t.TypeDefinition.FSharpFields
                 |> Seq.findIndex ((=) fld)
-                |> (+) 1
+                |> (+) offset
                 |> int64
             let e, nm = processExpr nm e
             tupleGet tupleIndex e |> constr, nm
@@ -1081,6 +1142,64 @@ process dictionary call the Ref.release() method.
               Arity = args.Length
               IsPublic = memb.Accessibility.IsPublic
               FunDef = fdef }]
+        | MemberOrFunctionOrValue (IsCtor memb, Parameters ps,
+                                   B.Sequential (first,  body)) ->
+            // first it calls the base constructor
+            let ee = memb.EnclosingEntity
+            let ctx = Ctx.init ee.FullName
+
+            let fieldSet fld v o =
+                let fezCore = litAtom "Fez.Core" |> constr
+                let f = constr (litAtom "field_set")
+                modCall fezCore f [fld; v; o]
+
+            let inheritF t o =
+                let fezCore = litAtom "Fez.Core" |> constr
+                let f = constr (litAtom "inherit")
+                modCall fezCore f [t; o]
+
+            let mkClassInstance baseType (m : FSharpMemberOrFunctionOrValue) =
+                let ret = memb.FullType.GenericArguments |> Seq.toList |> List.last
+                let t = litAtom ret.TypeDefinition.FullName |> constr
+                inheritF t baseType
+
+            let this =
+                let o, ctx = processExpr ctx first
+                mkClassInstance o memb |> constr
+
+            let thisExps = cerl.Var "_this" |> constr
+
+            let rec doCtor x = [
+                match x with
+                | B.Sequential(first, second) ->
+                    yield! doCtor first
+                    yield! doCtor second
+                | B.FSharpFieldSet (Some o, t, f, e)  ->
+                    let td = o.Type.TypeDefinition
+                    let field = td.FullName + "." + f.Name |> litAtom |> constr
+                    let v, nm = processExpr ctx e
+                    yield fieldSet field v thisExps |> constr
+                | x -> eprintfn "doCtor not done %A" x
+            ]
+
+            let body =
+                this :: doCtor body
+                |> List.rev
+                |> List.fold (fun s e ->
+                                mkLet "_this" e s |> constr)
+                             thisExps
+
+            let functionName = functionName memb
+            let f, ctx = mkFunction ctx functionName (List.length ps)
+            let args, nm = foldNames ctx (safeVar true) ps
+            let lambda = lambda args body
+            let fdef = funDef f lambda
+            [{Module = safe ee.FullName //TODO clean
+              Function = functionName
+              Arity = args.Length
+              IsPublic = memb.Accessibility.IsPublic
+              FunDef = fdef }]
+
         | MemberOrFunctionOrValue (memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
             let ee = memb.EnclosingEntity
@@ -1122,7 +1241,6 @@ process dictionary call the Ref.release() method.
         | x -> failwithf "cannot process %A " x
 
     and doDecl decl =
-      (* printfn "decl: %A" decl *)
       match decl with
       | Entity (ent, fdecls) when ent.IsFSharpModule ->
           fdecls |> List.map doFunDecl |> List.concat
@@ -1133,7 +1251,6 @@ process dictionary call the Ref.release() method.
       | x -> failwithf "cannot process %+A" x
 
     let moduleInfos name =
-          let mi = [cerl.moduleInfo0 name; cerl.moduleInfo1 name]
           [cerl.Function (cerl.Atom "module_info", 0)
            cerl.Function (cerl.Atom "module_info", 1)]
 
@@ -1143,5 +1260,8 @@ process dictionary call the Ref.release() method.
             |> List.filter (fun fd -> fd.IsPublic)
             |> List.map (fun fd -> cerl.Function (cerl.Atom fd.Function, fd.Arity))
             |> List.append (moduleInfos moduleName)
-        let functions = fDefs |> List.map (fun fd -> fd.FunDef)
+        let functions =
+            fDefs
+            |> List.map (fun fd -> fd.FunDef)
+            |> List.append [cerl.moduleInfo0 moduleName; cerl.moduleInfo1 moduleName]
         cerl.Module (cerl.Atom moduleName, exported, [], functions)
