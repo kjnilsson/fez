@@ -9,38 +9,39 @@
          filter/2,
          delay/1,
          collect/2,
-         take/2
+         take/2,
+         seq/1
         ]).
 
 -type enumerator() :: {list, non_neg_integer(), list()}.
 
--type seq() :: {seq, GetEnumerator :: fun(() -> enumerator())}.
+-type seq() :: {seq, enumerator()}.
 
 -export_type([seq/0]).
 
 empty() ->
-    {seq, fun() -> {list, []} end}.
+    {seq, {list, []}}.
 
 singleton(Item) ->
-    {seq, fun() -> {list, [Item]} end}.
+    {seq, {list, [Item]}}.
 
 append(Seq1, Seq2) ->
-    {seq, fun() -> {append, first, seq(Seq1), seq(Seq2)} end}.
+    {seq, {append, first, seq(Seq1), seq(Seq2)}}.
 
 map(F, Seq) ->
-    {seq, fun() -> {map, F, seq(Seq)} end}.
+    {seq, {map, F, seq(Seq)}}.
 
 filter(Pred, Seq) ->
-    {seq, fun() -> {filter, Pred, seq(Seq)} end}.
+    {seq, {filter, Pred, seq(Seq)}}.
 
 delay(F) ->
-    {seq, fun () -> {delay, F} end}.
+    {seq, {delay, F}}.
 
 collect(F, Sources) ->
-    {seq, fun () -> {collect, F, seq(Sources)} end}.
+    {seq, {collect, F, seq(Sources)}}.
 
 take(Num, Sources) ->
-    {seq, fun () -> {take, Num, seq(Sources)} end}.
+    {seq, {take, Num, seq(Sources)}}.
 
 toList(Seq) ->
     enumerate(seq(Seq), []).
@@ -50,14 +51,12 @@ ofList(List) when is_list(List) ->
 
 % casts lists (and others) to seq
 seq(L) when is_list(L) ->
-    {seq, fun() -> {list, L} end};
+    {seq, {list, L}};
 seq({seq, _} = Seq) ->
     Seq.
 
 %%% ------- internal -------
 
-enumerate({seq, Seq}, Acc) ->
-    enumerate(Seq(), Acc);
 enumerate(Enum0, Acc) ->
     case next(Enum0) of
         finished ->
@@ -66,29 +65,21 @@ enumerate(Enum0, Acc) ->
             enumerate(Enum, [Item | Acc])
     end.
 
-next({seq, GetE}) when is_function(GetE) ->
-    next(GetE());
-next({seq, EnumOrGetE}) ->
-    next(EnumOrGetE);
+next({seq, Enum}) ->
+    next(Enum);
 next({list, [H | Tail]}) ->
     {H, {list, Tail}};
 next({list, []}) ->
     finished;
-next({map, F, GetE}) when is_function(GetE) ->
-    next({map, F, GetE()});
 next({map, F, Enum0}) ->
     case next(Enum0) of
         finished -> finished;
         {Item, Enum} ->
             {F(Item), {map, F, Enum}}
     end;
-next({filter, P, GetE}) when is_function(GetE) ->
-    next({filter, P, GetE()});
 next({filter, P, Enum}) ->
     do_filter(P, Enum);
 
-next({take, Num, {seq, Seq}}) when is_function(Seq) ->
-    next({take, Num, Seq()});
 next({take, 0, _Enum0}) ->
     finished;
 next({take, Num, Enum0}) ->
@@ -115,9 +106,9 @@ next({append, second, Seq1Enum, Enum0}) ->
     end;
 next({delay, F}) ->
     next(seq(F()));
-next({collect, F, {seq, Seq}}) when is_function(Seq) ->
+next({collect, F, {seq, Enum}}) ->
     % add empty "current" list
-    next({collect, F, seq([]), Seq()});
+    next({collect, F, seq([]), Enum});
 next({collect, F, Current0, Enum0}) ->
     case next(Current0) of
         finished ->

@@ -34,12 +34,12 @@
         ]).
 
 % the set type is represented as a map
--type set() :: #{term() => ok}.
+-type set() :: {set, #{term() => ok}}.
 
 -export_type([set/0]).
 
 empty() ->
-    #{}.
+    {set, #{}}.
 
-add(Item, Set) ->
-    Set#{Item => ok}.
+add(Item, {set, Set}) ->
+    {set, Set#{Item => ok}}.

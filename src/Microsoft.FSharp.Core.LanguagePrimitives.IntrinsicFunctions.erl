@@ -1,5 +1,5 @@
 -module('Microsoft.FSharp.Core.LanguagePrimitives.IntrinsicFunctions').
--compile(export_all).
+-export(['UnboxGeneric'/1]).
 
 % dummy function
 'UnboxGeneric'(X) -> X.

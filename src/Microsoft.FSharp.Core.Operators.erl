@@ -228,9 +228,8 @@ reraise() ->
 round(N) ->
     erlang:round(N).
 
-seq({seq, _} = X) -> X;
-seq(X) when is_list(X) ->
-    {seq, fun () -> {list, X} end}.
+seq(S) ->
+    'Microsoft.FSharp.Collections.SeqModule':seq(S).
 
 string(X) ->
     % primitive ToString
