@@ -34,7 +34,7 @@
          iter/2,
          %iter2/3,
          %iteri2,
-         %last/1,
+         last/1,
          length/1,
          map/2,
          %map2/3,
@@ -48,9 +48,9 @@
          ofList/1,
          pairwise/1,
          pick/2,
-         %readonly/1,
-         %reduce/2,
-         %scan/3,
+         %readonly/1, % operates on mutable data structures
+         reduce/2,
+         scan/3,
          singleton/1,
          skip/2,
          skipWhile/2,
@@ -67,7 +67,7 @@
          tryFind/2,
          tryFindIndex/2,
          tryPick/2,
-         %unfold/3,
+         unfold/2,
          %where/2,
          %windowed/2,
          %zip/2,
@@ -105,6 +105,13 @@ empty() ->
 singleton(Item) ->
     {seq, {list, [Item]}}.
 
+scan(Folder, Initial, Seq) ->
+    Scanner = fun ([Last | _] = State, Item) ->
+                     Next = Folder(Item, Last),
+                     [Next | State]
+              end,
+    lists:reverse(aggregate(seq(Seq), [Initial], Scanner)).
+
 skip(Num, Seq) ->
     {seq, {skip, Num, seq(Seq)}}.
 
@@ -133,6 +140,9 @@ nth(Num, Seq) ->
 
 length(Seq) ->
     aggregate(seq(Seq), 0, fun (C, _) -> C+1 end).
+
+last(Seq) ->
+    reduce_internal(seq(Seq), fun (_, I) -> I end).
 
 exists(F, Seq) ->
     find_internal(seq(Seq), F) =/= undefined.
@@ -223,7 +233,7 @@ contains(Item, Seq) ->
     find_internal(seq(Seq), fun (I) -> I =:= Item end) =/= undefined.
 
 tail(Seq) ->
-    skip(1, Seq).
+    {seq, {tail, first, seq(Seq)}}.
 
 take(Num, Seq) ->
     {seq, {take, Num, seq(Seq)}}.
@@ -267,8 +277,14 @@ pick(Picker, Seq) ->
             Item
     end.
 
+reduce(Reducer, Seq) ->
+    reduce_internal(seq(Seq), Reducer).
+
 tryPick(Picker, Seq) ->
     pick_internal(seq(Seq), Picker).
+
+unfold(Gen, State) ->
+    {seq, {unfold, Gen, State}}.
 
 % casts lists (and others) to seq
 seq(L) when is_list(L) ->
@@ -384,6 +400,21 @@ next({truncate, Num, Enum0}) ->
             {Item, {truncate, Num-1, Enum}}
     end;
 
+next({tail, first, Seq0}) ->
+    case next(Seq0) of
+        finished ->
+            throw_arg_exn();
+        {_Item, Seq} ->
+            next({tail, rest, Seq})
+    end;
+next({tail, rest, Seq0}) ->
+    case next(Seq0) of
+        finished ->
+            finished;
+        {Item, Seq} ->
+            {Item, {tail, rest, Seq}}
+    end;
+
 next({take_while, Pred, Enum0}) ->
     case next(Enum0) of
         finished ->
@@ -407,7 +438,7 @@ next({skip, 0, Enum0}) ->
 next({skip, Num, Enum0}) ->
     case next(Enum0) of
         finished ->
-            finished;
+            throw_invalid_op_exn();
         {_SkippedItem, Enum} ->
             next({skip, Num-1, Enum})
     end;
@@ -495,8 +526,15 @@ next({collect, F, Current0, Enum0}) ->
             end;
         {Item, Current} ->
             {Item, {collect, F, Current, Enum0}}
-    end.
+    end;
 
+next({unfold, Gen, State0}) ->
+    case Gen(State0) of
+        undefined ->
+            finished;
+        {Item, State} ->
+            {Item, {unfold, Gen, State}}
+    end.
 
 do_filter(P, Enum0) ->
     case next(Enum0) of
@@ -560,6 +598,12 @@ sum_test() ->
     0 = sum([]),
     ok.
 
+reduce_test() ->
+    Reducer = fun erlang:'+'/2,
+    6 = reduce(Reducer, [1,2,3]),
+    ?assertException(throw, {'System.ArgumentException', _}, reduce(Reducer, [])),
+    ok.
+
 choose_test() ->
     S = seq([1,2,3]),
     [2,3] = toList(choose(fun(1) -> undefined;
@@ -602,10 +646,17 @@ find_test() ->
 
 head_test() ->
     1 = head([1,2,3]),
+    ?assertException(throw, {'System.ArgumentException', _}, head([])),
     ok.
 
 tail_test() ->
     [2,3] = toList(tail([1,2,3])),
+    ?assertException(throw, {'System.ArgumentException', _}, toList(tail([]))),
+    ok.
+
+last_test() ->
+    3 = last([1,2,3]),
+    ?assertException(throw, {'System.ArgumentException', _}, last([])),
     ok.
 
 isEmpty_test() ->
@@ -683,5 +734,21 @@ pairwise_test() ->
 skip_test() ->
     [3] = toList(skip(2, [1,2,3])),
     [3] = toList(skipWhile(fun(I) -> I < 3 end, [1,2,3])),
+    ?assertException(throw, {'System.InvalidOperationException', _}, toList(skip(1, []))),
     ok.
+
+scan_test() ->
+    Scanner = fun erlang:'+'/2,
+    [0,1,3,6] = scan(Scanner, 0, [1,2,3]),
+    [0] = scan(Scanner, 0, []),
+    ok.
+
+unfold_test() ->
+    Gen = fun (S) when S < 4 -> {S, S + 1};
+              (_) -> undefined
+          end,
+    [1,2,3] = toList(unfold(Gen, 1)),
+    ok.
+
+
 -endif.
