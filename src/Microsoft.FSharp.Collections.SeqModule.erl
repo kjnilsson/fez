@@ -70,8 +70,8 @@
          unfold/2,
          %where/2,
          %windowed/2,
-         %zip/2,
-         %zip3/3,
+         zip/2,
+         zip3/3,
          seq/1
         ]).
 
@@ -285,6 +285,12 @@ tryPick(Picker, Seq) ->
 
 unfold(Gen, State) ->
     {seq, {unfold, Gen, State}}.
+
+zip(Seq1, Seq2) ->
+    {seq, {zip, seq(Seq1), seq(Seq2)}}.
+
+zip3(Seq1, Seq2, Seq3) ->
+    {seq, {zip3, seq(Seq1), seq(Seq2), seq(Seq3)}}.
 
 % casts lists (and others) to seq
 seq(L) when is_list(L) ->
@@ -534,6 +540,20 @@ next({unfold, Gen, State0}) ->
             finished;
         {Item, State} ->
             {Item, {unfold, Gen, State}}
+    end;
+next({zip, Seq1_0, Seq2_0}) ->
+    case {next(Seq1_0), next(Seq2_0)} of
+        {{Item1, Seq1}, {Item2, Seq2}} ->
+            {{Item1, Item2}, {zip, Seq1, Seq2}};
+        _ ->
+            finished
+    end;
+next({zip3, Seq1_0, Seq2_0, Seq3_0}) ->
+    case {next(Seq1_0), next(Seq2_0), next(Seq3_0)} of
+        {{Item1, Seq1}, {Item2, Seq2}, {Item3, Seq3}} ->
+            {{Item1, Item2, Item3}, {zip3, Seq1, Seq2, Seq3}};
+        _ ->
+            finished
     end.
 
 do_filter(P, Enum0) ->
@@ -748,6 +768,16 @@ unfold_test() ->
               (_) -> undefined
           end,
     [1,2,3] = toList(unfold(Gen, 1)),
+    ok.
+
+zip_test() ->
+    Seq1 = seq([1,2,3]),
+    Seq2 = seq([1,2]),
+    Seq3 = seq([1,2,3]),
+    [{1,1},{2,2}] = toList(zip(Seq1, Seq2)),
+    [] = toList(zip([], Seq2)),
+    [{1,1,1},{2,2,2}] = toList(zip3(Seq1, Seq2, Seq3)),
+    [] = toList(zip3([], Seq2, Seq3)),
     ok.
 
 
