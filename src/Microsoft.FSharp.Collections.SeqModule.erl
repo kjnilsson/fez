@@ -25,7 +25,7 @@
          fold/3,
          %forall/2
          %forall2/3
-         %groupBy/2,
+         groupBy/2,
          head/1,
          init/2,
          %initInfinite/1,
@@ -168,6 +168,9 @@ findIndex(Pred, Seq) ->
 
 fold(Folder, State, Seq) ->
     aggregate(seq(Seq), State, Folder).
+
+groupBy(Projection, Seq) ->
+    {seq, {delay, fun () -> group_by(Projection, #{}, seq(Seq)) end}}.
 
 head(Seq) ->
     case next(seq(Seq)) of
@@ -369,6 +372,21 @@ enumerate(Enum0, Acc) ->
         {Item, Enum} ->
             enumerate(Enum, [Item | Acc])
     end.
+
+group_by(F, Groups0, Seq0) ->
+    case next(Seq0) of
+        finished ->
+            % reverse each result seq lazily
+            maps:fold (fun (Key, Values, Acc) ->
+                               [{Key, delay(fun () -> lists:reverse(Values) end)} | Acc]
+                       end, [], Groups0);
+        {Item, Seq} ->
+            Groups = maps:update_with(F(Item),
+                                      fun (Items) -> [Item | Items] end,
+                                      [Item], Groups0),
+            group_by(F, Groups, Seq)
+    end.
+
 
 next({seq, Enum}) ->
     next(Enum);
@@ -779,6 +797,18 @@ zip_test() ->
     [{1,1,1},{2,2,2}] = toList(zip3(Seq1, Seq2, Seq3)),
     [] = toList(zip3([], Seq2, Seq3)),
     ok.
+
+groupBy_test() ->
+    Seq = seq([1,2,3,10]),
+    [{low, Low}, {high, High}] =
+        toList(groupBy(fun (X) when X < 10 -> low;
+                           (_) -> high
+                       end, Seq)),
+
+    [10] = toList(High),
+    [1,2,3] = toList(Low),
+    ok.
+
 
 
 -endif.
