@@ -69,7 +69,7 @@
          tryPick/2,
          unfold/2,
          %where/2,
-         %windowed/2,
+         %windowed/2, % returns arrays
          zip/2,
          zip3/3,
          seq/1
@@ -98,6 +98,12 @@ averageBy(F, Seq) ->
                 aggregate(Enum, {1, F(Item)}, Aggr)
         end,
     Total / Num.
+
+distinct(Seq) ->
+    {seq, {delay, fun () -> distinct_by(fun id/1, [], seq(Seq)) end}}.
+
+distinctBy(F, Seq) ->
+    {seq, {delay, fun () -> distinct_by(F, [], seq(Seq)) end}}.
 
 empty() ->
     {seq, {list, []}}.
@@ -386,6 +392,20 @@ group_by(F, Groups0, Seq0) ->
                                       [Item], Groups0),
             group_by(F, Groups, Seq)
     end.
+
+distinct_by(KeyF, Items, Seq0) ->
+    case next(Seq0) of
+        finished ->
+            lists:reverse(Items);
+        {Item, Seq} ->
+            case lists:member(KeyF(Item), Items) of
+                true ->
+                    distinct_by(KeyF, Items, Seq);
+                false ->
+                    distinct_by(KeyF, [Item | Items], Seq)
+            end
+    end.
+
 
 
 next({seq, Enum}) ->
@@ -809,6 +829,12 @@ groupBy_test() ->
     [1,2,3] = toList(Low),
     ok.
 
+distinct_test() ->
+    Seq = [1,2,3,3,2,1],
+    [1,2,3] = toList(distinct(Seq)),
+    [1,2,3] = toList(distinctBy(fun id/1, Seq)),
+
+    ok.
 
 
 -endif.
