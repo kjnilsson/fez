@@ -1243,7 +1243,7 @@ process dictionary call the Ref.release() method.
     and doDecl decl =
       match decl with
       | Entity (ent, fdecls) when ent.IsFSharpModule ->
-          fdecls |> List.map doFunDecl |> List.concat
+          fdecls |> List.collect doFunDecl
       | InitAction expr ->
           failwithf "Module values (InitActions) are not supported as there is no equivalent in erlang.\r\nMake it a function instead.\r\n%A" expr
       | Entity (ent, declList) ->

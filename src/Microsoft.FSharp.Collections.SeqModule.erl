@@ -69,7 +69,7 @@
          tryPick/2,
          unfold/2,
          %where/2,
-         %windowed/2, % returns arrays
+         windowed/2, % returns arrays
          zip/2,
          zip3/3,
          seq/1
@@ -294,6 +294,10 @@ tryPick(Picker, Seq) ->
 
 unfold(Gen, State) ->
     {seq, {unfold, Gen, State}}.
+
+windowed(Size, Seq) ->
+    {seq, {windowed, false, Size, 0,
+           array:new(Size, [{fixed, false}]), seq(Seq)}}.
 
 zip(Seq1, Seq2) ->
     {seq, {zip, seq(Seq1), seq(Seq2)}}.
@@ -592,7 +596,31 @@ next({zip3, Seq1_0, Seq2_0, Seq3_0}) ->
             {{Item1, Item2, Item3}, {zip3, Seq1, Seq2, Seq3}};
         _ ->
             finished
+    end;
+next({windowed, true, Size, Idx, Window00, Seq0}) ->
+    case next(Seq0) of
+        finished ->
+            finished;
+        {Item, Seq} ->
+            Window0 = array:sparse_foldl(fun (I, V, Acc) ->
+                                                 array:set(I-1, V, Acc)
+                                         end,
+                                        array:new(Size, [{fixed, false}]),
+                                        array:reset(0, array:relax(Window00))),
+            Window = array:set(Size-1, Item, Window0),
+            {Window, {windowed, true, Size, Idx, array:fix(Window), Seq}}
+    end;
+next({windowed, false, Size, Size, Window, Seq}) ->
+    {Window, {windowed, true, Size, Size, array:fix(Window), Seq}};
+next({windowed, false, Size, Idx, Window0, Seq0}) ->
+    case next(Seq0) of
+        finished ->
+            finished;
+        {Item, Seq} ->
+            Window = array:set(Idx, Item, Window0),
+            next({windowed, false, Size, Idx+1, Window, Seq})
     end.
+
 
 do_filter(P, Enum0) ->
     case next(Enum0) of
@@ -835,6 +863,17 @@ distinct_test() ->
     [1,2,3] = toList(distinctBy(fun id/1, Seq)),
 
     ok.
+
+windowed_test() ->
+    Seq = [1,2,3,4],
+    [W1, W2, W3] = toList(windowed(2, Seq)),
+    [1,2] = array:to_list(W1),
+    [2,3] = array:to_list(W2),
+    [3,4] = array:to_list(W3),
+    [] = toList(windowed(2, [])),
+    [] = toList(windowed(2, [1])),
+    ok.
+
 
 
 -endif.
