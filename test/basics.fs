@@ -476,3 +476,19 @@ module Objects =
         let d = D()
         // ("A", "B", "C", "C", "C", "C", "C")
         a.Test(), b.Test(), c.Test(), (c :> A).Test(), d.Test(), (d :> A).Test(), d.TestIt()
+
+
+type S = S
+with
+    static member (-) (s1, s2) =
+        99
+
+let custom_op_test() =
+    let s1 = S
+    let s2 = S
+    s1 - s2
+
+let set_op_test() =
+    let s1 = set [1;2;3]
+    let s2 = set [2]
+    Set.toList(s1 - s2)

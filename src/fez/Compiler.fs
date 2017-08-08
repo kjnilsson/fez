@@ -550,13 +550,29 @@ module Compiler =
                           (argTypes: FSharpType list)
                           (exprs : FSharpExpr list) : (cerl.Exps * Ctx) =
         let fe = f.EnclosingEntity
+        let typeHasMfv (e: FSharpExpr) =
+            if e.Type.HasTypeDefinition then
+                e.Type.TypeDefinition.MembersFunctionsAndValues
+                |> Seq.exists (fun s -> s.LogicalName = f.LogicalName)
+            else false
+
         match callee, f, exprs with
         //special case mapping + on a string to ++
         | _, Intr2Erl "+", ExprType "string" _ :: _ ->
             let stringAppend = litAtom "++" |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang stringAppend args |> constr, nm
-        | _, Intr2Erl x, _ ->
+        // TODO: special case op_Equality to check for 'Equals' override
+        | _, _, e :: _ when f.LogicalName.StartsWith("op_") &&  typeHasMfv e ->
+            // type has overriden operator
+            let m = safeAtom e.Type.TypeDefinition.FullName
+            let f = safeAtom f.LogicalName
+            let args, nm =
+                eraseUnit exprs
+                |> foldNames nm processExpr
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+            modCall m f args |> constr, nm
+        | _, Intr2Erl x, e :: _ ->
             let op = litAtom x |> constr
             let args, nm = foldNames nm processExpr exprs
             modCall erlang op args |> constr, nm
@@ -580,6 +596,7 @@ module Compiler =
                     //method on type rather than nested module
                     fe.LogicalName + "." + f.LogicalName
             //add callee as first arg if method dispatch
+            //TODO: refactor - stale
             let args, nm =
                 let args, nm =
                     eraseUnit exprs

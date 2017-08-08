@@ -1,4 +1,21 @@
 module wip
+
+type S = S
+with
+    static member (-) (s1, s2) =
+        99
+
+let custom_op_test() =
+    let s1 = S
+    let s2 = S
+    s1 - s2
+
+let set_Test() =
+    let s1 = set [1;2;3]
+    let s2 = set [2]
+    Set.toList(s1 - s2)
+
+
 (* open Fez.Core *)
 
 (* [<ModCall("erlang", "put")>] *)

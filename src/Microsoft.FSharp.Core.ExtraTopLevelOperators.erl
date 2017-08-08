@@ -2,7 +2,8 @@
 -export([
          async/0,
          printfn/1,
-         query/0
+         query/0,
+         set/1
         ]).
 
 % dummy value for async builder
@@ -13,3 +14,5 @@ printfn(S) ->
 
 query() -> ok.
 
+set(S) ->
+    'Microsoft.FSharp.Collections.SetModule':set(S).

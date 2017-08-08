@@ -235,3 +235,12 @@ async_test() ->
 
 oo_test() ->
     {"A", "B", "C", "C", "C", "C", "C"} = 'basics.Objects':testOO().
+
+custom_op_test() ->
+    99 = basics:custom_op_test().
+
+set_op_test() ->
+    [1,3] = basics:set_op_test(),
+    ok.
+
+
