@@ -11,12 +11,12 @@
          compareWith/3,
          concat/1,
          contains/2,
-         % countBy/2
+         countBy/2,
          delay/1,
-         %distinct/1,
-         %distinctBy/2,
+         distinct/1,
+         distinctBy/2,
          empty/0,
-         %exactlyOne/1,
+         % exactlyOne/1,
          exists/2,
          %exists2/3,
          filter/2,
@@ -100,10 +100,10 @@ averageBy(F, Seq) ->
     Total / Num.
 
 distinct(Seq) ->
-    {seq, {delay, fun () -> distinct_by(fun id/1, [], seq(Seq)) end}}.
+    distinctBy(fun id/1, Seq).
 
 distinctBy(F, Seq) ->
-    {seq, {delay, fun () -> distinct_by(F, [], seq(Seq)) end}}.
+    {seq, {distinct_by, F, #{}, seq(Seq)}}.
 
 empty() ->
     {seq, {list, []}}.
@@ -202,6 +202,9 @@ iter(Action, Seq) ->
                                     end),
     unit.
 
+countBy(F, Seq0) ->
+      L = lists:usort(toList(map(F, seq(Seq0)))),
+      length(L).
 
 delay(F) ->
     {seq, {delay, F}}.
@@ -406,21 +409,6 @@ group_by(F, Groups0, Seq0) ->
             group_by(F, Groups, Seq)
     end.
 
-distinct_by(KeyF, Items, Seq0) ->
-    case next(Seq0) of
-        finished ->
-            lists:reverse(Items);
-        {Item, Seq} ->
-            case lists:member(KeyF(Item), Items) of
-                true ->
-                    distinct_by(KeyF, Items, Seq);
-                false ->
-                    distinct_by(KeyF, [Item | Items], Seq)
-            end
-    end.
-
-
-
 next({seq, Enum}) ->
     next(Enum);
 next({list, [H | Tail]}) ->
@@ -526,6 +514,20 @@ next({pairwise, Last, _Pairs, Seq0}) ->
             {{Last, Item}, {pairwise, Item, [], Seq}};
         finished ->
             finished
+    end;
+
+next({distinct_by, KeyF, Keys, Seq0}) ->
+    case next(Seq0) of
+        finished ->
+            finished;
+        {Item, Seq} ->
+            Key = KeyF(Item),
+            case maps:is_key(Key, Keys) of
+                true ->
+                    next({distinct_by, KeyF, Keys, Seq});
+                false ->
+                    {Item, {distinct_by, KeyF, Keys#{Key => ok}, Seq}}
+            end
     end;
 
 next({append, first, Enum0, Seq2}) ->
@@ -874,6 +876,7 @@ distinct_test() ->
     Seq = [1,2,3,3,2,1],
     [1,2,3] = toList(distinct(Seq)),
     [1,2,3] = toList(distinctBy(fun id/1, Seq)),
+    [1,2,3] = toList(distinctBy(fun(N) -> N*N end, Seq)),
 
     ok.
 
@@ -885,6 +888,12 @@ windowed_test() ->
     [3,4] = array:to_list(W3),
     [] = toList(windowed(2, [])),
     [] = toList(windowed(2, [1])),
+    ok.
+
+countBy_test() ->
+    Seq = [1,2,3],
+    3 = countBy(fun id/1, Seq),
+    1 = countBy(fun(_) -> one end, Seq),
     ok.
 
 are_seqs_test() ->
