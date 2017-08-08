@@ -310,8 +310,17 @@ seq(L) when is_list(L) ->
     {seq, {list, L}};
 seq({seq, _} = Seq) ->
     Seq;
-seq(_Seq) ->
-    throw(argument_exception).
+seq(Map) when is_map(Map) ->
+    {seq, {delay, fun () -> seq(maps:to_list(Map)) end}};
+seq({set, Map}) ->
+    {seq, {delay, fun () -> seq(maps:keys(Map)) end}};
+seq(Seq) ->
+    case array:is_array(Seq) of
+        true  ->
+            {seq, {array, array:size(Seq), 0, Seq}};
+        false ->
+            throw(argument_exception)
+    end.
 
 %%% ------- internal -------
 
@@ -619,7 +628,11 @@ next({windowed, false, Size, Idx, Window0, Seq0}) ->
         {Item, Seq} ->
             Window = array:set(Idx, Item, Window0),
             next({windowed, false, Size, Idx+1, Window, Seq})
-    end.
+    end;
+next({array, Size, Size, _Array}) ->
+    finished;
+next({array, Size, Idx, Array}) ->
+    {array:get(Idx, Array), {array, Size, Idx+1, Array}}.
 
 
 do_filter(P, Enum0) ->
@@ -874,6 +887,16 @@ windowed_test() ->
     [] = toList(windowed(2, [1])),
     ok.
 
+are_seqs_test() ->
+    % arrays
+    [1,2,3] = toList(seq(array:from_list([1,2,3]))),
+    % maps
+    Map = #{one => 1, two => 2},
+    [{one, 1}, {two, 2}] = toList(seq(Map)),
+    % sets (see SetModule)
+    Set = {set, #{1 => ok, 2 => ok}},
+    [1,2] = toList(seq(Set)),
+    ok.
 
 
 -endif.
