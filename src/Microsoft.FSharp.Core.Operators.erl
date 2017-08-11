@@ -51,7 +51,7 @@
          %incr/1,
          %infinity/0,
          %infinityf/0,
-         %int/1,
+         int/1,
          %int16/1,
          %int32/1,
          %int64/1,
@@ -198,6 +198,13 @@ id(X) -> X.
 
 ignore(_X) -> ok.
 
+int(N) when is_integer(N) ->
+    N;
+int(F) when is_float(F) ->
+    trunc(F);
+int(S) when is_list(S) ->
+    list_to_integer(S).
+
 max(A, B) ->
     erlang:max(A, B).
 
@@ -239,3 +246,14 @@ snd(T) ->
     element(2, T).
 
 unbox(X) -> X.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+int_test() ->
+    5 = int(5),
+    5 = int(5.6),
+    5 = int("5"),
+    ok.
+
+-endif.
