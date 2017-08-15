@@ -148,6 +148,10 @@ module Compiler =
             failwithf "Errs %A" res.Errors
         res
 
+    let lowerFirst s =
+        if String.exists Char.IsLower s then
+            String.mapi (fun i c -> if i = 0 then Char.ToLower c else c) s
+        else s
 
     let fezUnit =
         cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "fez_unit"))))
@@ -338,11 +342,11 @@ module Compiler =
             cerl.ModCall((erlang, litAtom "is_list" |> constr), [name]) |> constr
         | x -> failwithf "mkTypeCheck not impl %A" x
 
-    let mkErlangTermCasePat ctx (t: FSharpType) (uc: FSharpUnionCase) =
+    let mkErlangTermCasePat ctx (t: FSharpType) inclTag (uc: FSharpUnionCase) =
         match Seq.toList uc.UnionCaseFields with
         | [] -> //no args match on atom
-            uc.Name.ToLower() |> lAtomPat, cerl.defaultGuard
-        | [a] ->
+            lowerFirst uc.Name |> lAtomPat, cerl.defaultGuard
+        | [a] when not inclTag ->
             let name, ctx = uniqueName ctx
             let guard = cerl.Guard (mkTypeCheck (a.FieldType) (cerl.Var name |> constr))
             let field = cerl.PVar name
@@ -357,6 +361,12 @@ module Compiler =
                     (name, check), ctx)
             let checks = nameChecks |> List.map snd
             let patterns = nameChecks |> List.map (fst >> cerl.PVar)
+            let patterns =
+                if inclTag then
+                    let tag = lowerFirst uc.Name |> lAtomPat
+                    tag :: patterns
+                else patterns
+
             let falseExp = litAtom "false"
             let trueExp = litAtom "true"
             let third, ctx = uniqueName ctx
@@ -725,10 +735,17 @@ module Compiler =
             modCall erlang el [cerl.Lit idx |> constr; e] |> constr, nm
 
         let (|ErlangTerm|_|) (t: FSharpType) =
-            if t.TypeDefinition.Attributes
-               |> Seq.exists (fun a -> a.AttributeType.LogicalName = "ErlangTerm") then
-                Some t
-            else None
+            let et = t.TypeDefinition.Attributes
+                     |> Seq.tryFind (fun a ->
+                         a.AttributeType.LogicalName = "ErlangTerm")
+            match et with
+            | Some a ->
+                let inclTags =
+                    a.NamedArguments
+                    |> Seq.exists (fun (t, name, _, b)  ->
+                        name = "IncludeTagsWithTuples" && b :?> bool)
+                Some (t, inclTags)
+            | None -> None
 
         match expr with
         | B.UnionCaseTest (e, IsFSharpList t, IsCase "Cons" c) ->
@@ -755,8 +772,8 @@ module Compiler =
             let a1, nm = element nm 1L e
             let a2 = litAtom "error" |> constr
             modCall erlang equals [a1; a2] |> constr, nm
-        | B.UnionCaseTest (e, ErlangTerm t, uc) ->
-            let pat, guard = mkErlangTermCasePat nm t uc
+        | B.UnionCaseTest (e, ErlangTerm (t, inclTag), uc) ->
+            let pat, guard = mkErlangTermCasePat nm t inclTag uc
             let alt1 = mkAlt pat guard trueExps
             let alt2 = mkAlt (cerl.PVar "_") cerl.defaultGuard falseExps
             let e, ctx = processExpr nm e
@@ -808,16 +825,22 @@ module Compiler =
             let a1 = litAtom "error" |> constr
             let a2, nm  = processExpr nm e
             cerl.Tuple [a1; a2] |> constr, nm
-        | B.NewUnionCase(ErlangTerm t, uc, []) as e ->
-            uc.Name.ToLower() |> litAtom |> constr, nm
-        | B.NewUnionCase(ErlangTerm t, uc, [arg]) as e ->
+        | B.NewUnionCase(ErlangTerm (t, inclTags), uc, []) as e ->
+            lowerFirst uc.Name |> litAtom |> constr, nm
+        | B.NewUnionCase(ErlangTerm (t, false), uc, [arg]) as e ->
             // a single arg is treated like it's value
             processExpr nm arg
-        | B.NewUnionCase(ErlangTerm t, uc, args) as e ->
+        | B.NewUnionCase(ErlangTerm (t, false), uc, args) as e ->
             // if the DU case has args we treat them as any other tuple
             let args, nm = foldNames nm processExpr args
             let args = List.map (flattenLambda []) args
             cerl.Tuple args |> constr, nm
+        | B.NewUnionCase(ErlangTerm (t, true), uc, args) as e ->
+            // include tag in tuple
+            let tag = lowerFirst uc.Name |> litAtom |> constr
+            let args, nm = foldNames nm processExpr args
+            let args = List.map (flattenLambda []) args
+            cerl.Tuple (tag :: args) |> constr, nm
         | B.NewUnionCase(t, uc, argExprs) as e ->
             let typeTag = mkTypeTag t
             let caseTag = mkUnionTag uc
@@ -929,21 +952,22 @@ process dictionary call the Ref.release() method.
              modCall erlang hd [e] |> constr, nm
         | B.UnionCaseGet (value, IsFSharpOption t, IsCase "Some" c, fld) ->
             processExpr nm value
-        | B.UnionCaseGet(e, ErlangTerm t, c, f) ->
+        | B.UnionCaseGet(e, ErlangTerm (t, inclTag), c, f) ->
             match Seq.toList c.UnionCaseFields with
             | [] -> //atom case
-                c.Name.ToLower() |> litAtom |> constr, nm
-            | [a] ->
+                lowerFirst c.Name |> litAtom |> constr, nm
+            | [a] when not inclTag ->
                 processExpr nm e
             | args ->
-            let idx =
-                c.UnionCaseFields
-                |> Seq.findIndex ((=) f)
-                |> int64
-            let element = litAtom "element" |> constr
-            let e, nm = processExpr nm e
-            let idx = idx + 1L |> cerl.LInt
-            modCall erlang element [cerl.Lit idx |> constr; e] |> constr, nm
+                let idx =
+                    c.UnionCaseFields
+                    |> Seq.findIndex ((=) f)
+                    |> int64
+                let element = litAtom "element" |> constr
+                let e, nm = processExpr nm e
+                let incr = if inclTag then 2L else 1L
+                let idx = idx + incr |> cerl.LInt
+                modCall erlang element [cerl.Lit idx |> constr; e] |> constr, nm
         | B.UnionCaseGet(e, t, c, f) ->
             // turn these into element/2 calls
             let idx =

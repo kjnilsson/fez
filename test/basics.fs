@@ -275,7 +275,8 @@ let interfaces () =
     use o = O
     (o :> IPrt).Prt()
 
-//to represent atoms - will lowercase the case name
+//to represent atoms - will lowercase the first letter of the case name
+//if the case name is mixed case.
 [<ErlangTerm>]
 type TimeUnit =
     | Second
@@ -306,6 +307,27 @@ let erlang_term_match =
     | Second -> "second"
     | Integer i -> sprintf "%i" i
     | Tuple (a, b) -> sprintf "%i %i" a b
+
+// includes the tuple tag
+[<ErlangTerm(IncludeTagsWithTuples=true)>]
+type SomeTerm =
+    | Someatom
+    | EXIT
+    | Tup1 of int
+    | Tup2 of int * string
+
+let erlang_terms_with_tags () =
+    [Someatom; EXIT; Tup1 42; Tup2 (42, "hi")]
+
+[<ModCall("lists", "flatten")>]
+let flatten s = s
+
+let erlang_term_with_tag_match term =
+    match term with
+    | Someatom -> "second"
+    | EXIT -> "EXIT"
+    | Tup1 a -> sprintf "{tup1, %i}" a |> flatten
+    | Tup2 (a, b) -> sprintf "{tup2, %i, %s}" a b |> flatten
 
 let just_string = string "a_string"
 let just_char = string 'a'

@@ -1,19 +1,42 @@
 module wip
+open Fez.Core
 
-type S = S
-with
-    static member (-) (s1, s2) =
-        99
+(* type S = S *)
+(* with *)
+(*     static member (-) (s1, s2) = *)
+(*         99 *)
 
-let custom_op_test() =
-    let s1 = S
-    let s2 = S
-    s1 - s2
+(* let custom_op_test() = *)
+(*     let s1 = S *)
+(*     let s2 = S *)
+(*     s1 - s2 *)
 
-let set_Test() =
-    let s1 = set [1;2;3]
-    let s2 = set [2]
-    Set.toList(s1 - s2)
+(* let set_Test() = *)
+(*     let s1 = set [1;2;3] *)
+(*     let s2 = set [2] *)
+(*     Set.toList(s1 - s2) *)
+
+[<ErlangTerm(IncludeTagsWithTuples=true)>]
+type SomeTerm =
+    | Native
+    | EXIT
+    | Integer of int
+    | Tupl of int * string
+
+[<ErlangTerm>]
+type SomeTerm1 =
+    | Int of int
+    | Tuple of int * string
+
+let et () =
+    EXIT, Integer 42, Tupl (32, "hi"), Tuple (32, "ho")
+
+let etf =
+    function
+    | Native -> "native"
+    | EXIT -> "EXIT"
+    | Integer i -> "{integer, i}"
+    | Tupl (i, s) -> "{tupl, i, s}"
 
 
 (* open Fez.Core *)

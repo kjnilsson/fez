@@ -169,6 +169,13 @@ erlang_term_match_test() ->
     "5 6" = lists:flatten(basics:erlang_term_match({5, 6})),
     ok.
 
+erlang_term_with_tag_test() ->
+    Terms = basics:erlang_terms_with_tags(),
+    [someatom, 'EXIT', {tup1, 42}, {tup2, 42, "hi"}] = Terms,
+    ["second", "EXIT", "{tup1, 42}", "{tup2, 42, hi}"] =
+        [basics:erlang_term_with_tag_match(Term) || Term <- Terms],
+    ok.
+
 string_to_string_test() ->
     "a_string" = basics:just_string().
 

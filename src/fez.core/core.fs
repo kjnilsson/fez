@@ -45,8 +45,13 @@ let (<!) = send
 type ModCall(modu: string, func: string) =
     inherit System.Attribute()
 
+type CaseStrategy =
+    | LowerFirstCharLeaveAllUpper = 0
+
 type ErlangTerm() =
     inherit System.Attribute()
+    member val IncludeTagsWithTuples = false with get, set
+    member val CaseStrategy = CaseStrategy.LowerFirstCharLeaveAllUpper with get, set
 
 
 type Ref<'a> with
