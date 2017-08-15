@@ -5,7 +5,7 @@
          average/1,
          averageBy/2,
          %cache/1, % requires mutation
-         %cast/1,
+         cast/1,
          choose/2,
          collect/2,
          compareWith/3,
@@ -16,29 +16,29 @@
          distinct/1,
          distinctBy/2,
          empty/0,
-         % exactlyOne/1,
+         exactlyOne/1,
          exists/2,
-         %exists2/3,
+         exists2/3,
          filter/2,
          find/2,
          findIndex/2,
          fold/3,
-         %forall/2
-         %forall2/3
+         forall/2,
+         forall2/3,
          groupBy/2,
          head/1,
          init/2,
-         %initInfinite/1,
+         initInfinite/1,
          isEmpty/1,
          item/2,
          iter/2,
-         %iter2/3,
-         %iteri2,
+         iter2/3,
+         iteri/2,
          last/1,
          length/1,
          map/2,
-         %map2/3,
-         %mapi/2,
+         map2/3,
+         mapi/2,
          max/1,
          % maxBy/2,
          min/1,
@@ -54,7 +54,7 @@
          singleton/1,
          skip/2,
          skipWhile/2,
-         %sort/1,
+         sort/1,
          %sortBy/2,
          sum/1,
          %sumBy/2,
@@ -124,11 +124,20 @@ skip(Num, Seq) ->
 skipWhile(Pred, Seq) ->
     {seq, {skip_while, Pred, seq(Seq)}}.
 
+sort(Seq) ->
+    delay(fun () -> seq(lists:sort(toList(Seq))) end).
+
 sum(Seq) ->
     aggregate(seq(Seq), 0, fun erlang:'+'/2).
 
 map(F, Seq) ->
     {seq, {map, F, seq(Seq)}}.
+
+mapi(F, Seq) ->
+    {seq, {mapi, F, 0, seq(Seq)}}.
+
+map2(F, Seq1, Seq2) ->
+    {seq, {map2, F, seq(Seq1), seq(Seq2)}}.
 
 max(Seq) ->
     reduce_internal(seq(Seq), fun (C, Acc) when C > Acc -> C;
@@ -153,6 +162,22 @@ last(Seq) ->
 exists(F, Seq) ->
     find_internal(seq(Seq), F) =/= undefined.
 
+exists2(F, Seq1, Seq2) ->
+    find2_internal(F, seq(Seq1), seq(Seq2)) =/= undefined.
+
+exactlyOne(Seq0) ->
+    case next(seq(Seq0)) of
+        finished ->
+            throw_arg_exn();
+        {Item, Seq} ->
+            case next(Seq) of
+                finished ->
+                    Item;
+                _ ->
+                    throw_arg_exn()
+            end
+    end.
+
 filter(Pred, Seq) ->
     {seq, {filter, Pred, seq(Seq)}}.
 
@@ -175,6 +200,23 @@ findIndex(Pred, Seq) ->
 fold(Folder, State, Seq) ->
     aggregate(seq(Seq), State, Folder).
 
+forall(Pred, Seq) ->
+    case find_internal(seq(Seq), fun (X) -> not Pred(X) end) of
+        undefined ->
+            true;
+        {_Index, _Item} ->
+            false
+    end.
+
+forall2(Pred, Seq1, Seq2) ->
+    case find2_internal(fun (A, B) -> not Pred(A, B) end,
+                        seq(Seq1), seq(Seq2)) of
+        undefined ->
+            true;
+        {_Index, _Item} ->
+            false
+    end.
+
 groupBy(Projection, Seq) ->
     {seq, {delay, fun () -> group_by(Projection, #{}, seq(Seq)) end}}.
 
@@ -187,7 +229,10 @@ head(Seq) ->
     end.
 
 init(Num, Gen) ->
-    {seq, {iter, 0, Num, Gen}}.
+    {seq, {init, 0, Num, Gen}}.
+
+initInfinite(Gen) ->
+    {seq, {init_infinite, 0, Gen}}.
 
 isEmpty(Seq) ->
     next(seq(Seq)) =:= finished.
@@ -202,12 +247,26 @@ iter(Action, Seq) ->
                                     end),
     unit.
 
+iteri(Action, Seq) ->
+    _ = aggregate(Seq, 0, fun (S, I) ->
+                                  Action(S, I),
+                                  S+1
+                          end),
+    unit.
+
+iter2(Action, Seq1, Seq2) ->
+    _ = toList(map2(Action, Seq1, Seq2)),
+    unit.
+
 countBy(F, Seq0) ->
       L = lists:usort(toList(map(F, seq(Seq0)))),
       length(L).
 
 delay(F) ->
     {seq, {delay, F}}.
+
+% cast is effectively a noop
+cast(Seq) -> seq(Seq).
 
 choose(Chooser, Seq) ->
     filter(fun(I) ->
@@ -342,6 +401,20 @@ item_internal(Num, Seq0) ->
             item_internal(Num-1, Seq)
     end.
 
+find2_internal(F, Seq1_0, Seq2_0) ->
+    case {next(Seq1_0), next(Seq2_0)} of
+        {{Item1, Seq1}, {Item2, Seq2}} ->
+            case F(Item1, Item2) of
+                true ->
+                    {Item1, Item2};
+                false ->
+                    find2_internal(F, Seq1, Seq2)
+            end;
+        _ ->
+            undefined
+    end.
+
+
 find_internal(Enum0, F) ->
     find_internal0(Enum0, 0, F).
 
@@ -420,6 +493,19 @@ next({map, F, Enum0}) ->
         finished -> finished;
         {Item, Enum} ->
             {F(Item), {map, F, Enum}}
+    end;
+next({mapi, F, Index, Seq0}) ->
+    case next(Seq0) of
+        finished -> finished;
+        {Item, Seq} ->
+            {F(Index, Item), {mapi, F, Index+1, Seq}}
+    end;
+next({map2, F, Seq1_0, Seq2_0}) ->
+    case {next(Seq1_0), next(Seq2_0)} of
+        {finished, _} -> finished;
+        {_, finished} -> finished;
+        {{Item1, Seq1}, {Item2, Seq2}} ->
+            {F(Item1, Item2), {map2, F, Seq1, Seq2}}
     end;
 next({filter, P, Enum}) ->
     do_filter(P, Enum);
@@ -564,10 +650,13 @@ next({concat, Enum0, Sources0}) ->
             {Item, {concat, Enum, Sources0}}
     end;
 
-next({iter, N, N, _Gen}) ->
+next({init, N, N, _Gen}) ->
     finished;
-next({iter, Count, Num, Gen}) ->
-    {Gen(Count), {iter, Count+1, Num, Gen}};
+next({init, Count, Num, Gen}) ->
+    {Gen(Count), {init, Count+1, Num, Gen}};
+
+next({init_infinite, Count, Gen}) ->
+    {Gen(Count), {init_infinite, Count+1, Gen}};
 
 next({delay, F}) ->
     next(seq(F()));
@@ -745,6 +834,16 @@ find_test() ->
     undefined = tryPick(Picker, []),
     ok.
 
+exists2_test() ->
+    S1 = [1,2,3],
+    S2 = [1,2,3,4],
+    Pred = fun(2, 2) -> true;
+              (_, _) -> false
+           end,
+    true = exists2(Pred, S1, S2),
+    false = exists2(Pred, S1, []),
+    ok.
+
 head_test() ->
     1 = head([1,2,3]),
     ?assertException(throw, {'System.ArgumentException', _}, head([])),
@@ -768,10 +867,16 @@ isEmpty_test() ->
 iter_test() ->
     Seq = seq([1,2,3]),
     iter(fun(I) -> put(iter_test, I) end, Seq),
-    3 = get(iter_test).
+    iteri(fun(I, V) -> put(iteri_test, {I, V}) end, Seq),
+    iter2(fun(V1, V2) -> put(iter2_test, {V1, V2}) end, Seq, [1,2,3,4]),
+    3 = get(iter_test),
+    {2, 3} = get(iteri_test),
+    {3, 3} = get(iter2_test),
+    ok.
 
 init_test() ->
     [0,1,2] = toList(init(3, fun(I) -> I end)),
+    [0,1,2] = toList(take(3,initInfinite(fun(I) -> I end))),
     ok.
 
 lists_are_seqs_test() ->
@@ -799,6 +904,11 @@ compareWith_test() ->
     1 = compareWith(Comparer, [1,2,3], [1,2]),
     ok.
 
+exactlyOne_test() ->
+    ?assertException(throw, {'System.ArgumentException', _}, exactlyOne([])),
+    ?assertException(throw, {'System.ArgumentException', _}, exactlyOne([1,2])),
+    1 = exactlyOne([1]),
+    ok.
 
 take_test() ->
     [1,2] = toList(take(2, [1,2,3])),
@@ -872,12 +982,30 @@ groupBy_test() ->
     [1,2,3] = toList(Low),
     ok.
 
+mapi_test() ->
+    S = [1,2,3],
+    [1,3,5] = toList(mapi(fun erlang:'+'/2, S)),
+    ok.
+
+map2_test() ->
+    S1 = [1,2,3],
+    S2 = [1,2,3,4],
+    [2,4,6] = toList(map2(fun erlang:'+'/2, S1, S2)),
+    ok.
+
 distinct_test() ->
     Seq = [1,2,3,3,2,1],
     [1,2,3] = toList(distinct(Seq)),
     [1,2,3] = toList(distinctBy(fun id/1, Seq)),
     [1,2,3] = toList(distinctBy(fun(N) -> N*N end, Seq)),
 
+    ok.
+
+forall_test() ->
+    true = forall(fun(X) -> X < 10 end, [1,2,3]),
+    false = forall(fun(X) -> X < 3 end, [1,2,3]),
+    true = forall2(fun(A, B) -> A+B < 10 end, [1,2,3], [1,2,3]),
+    false = forall2(fun(A, B) -> A+B < 6 end, [1,2,3], [1,2,3]),
     ok.
 
 windowed_test() ->
@@ -894,6 +1022,11 @@ countBy_test() ->
     Seq = [1,2,3],
     3 = countBy(fun id/1, Seq),
     1 = countBy(fun(_) -> one end, Seq),
+    ok.
+
+sort_test() ->
+    Seq = [2,1,3],
+    [1,2,3] = toList(sort(Seq)),
     ok.
 
 are_seqs_test() ->
