@@ -68,11 +68,12 @@ module Util =
         |]
 
     let projectOptions (checker: FSharpChecker) files =
-        {ProjectFileName = "Test"
-         ProjectFileNames = [||]
+        {FSharpProjectOptions.ProjectFileName = "Test"
+         SourceFiles = files
+         Stamp = Some 0L
+         (* ProjectFileNames = [||] *)
          OtherOptions =
              [|"-o:Test.dll"; "-a"|]
-             ++ files
              ++ compilerArgs ()
          ReferencedProjects = [||]
          IsIncompleteTypeCheckEnvironment = false
@@ -495,7 +496,7 @@ module Compiler =
 
     /// used for member
     let qualifiedMember (f : FSharpMemberOrFunctionOrValue) =
-        let fe = f.EnclosingEntity
+        let fe = f.EnclosingEntity.Value
         let name = f.LogicalName
         let eeFullName = fe.FullName
         let eeName = fe.CompiledName
@@ -559,7 +560,7 @@ module Compiler =
                           (f : FSharpMemberOrFunctionOrValue)
                           (argTypes: FSharpType list)
                           (exprs : FSharpExpr list) : (cerl.Exps * Ctx) =
-        let fe = f.EnclosingEntity
+        let fe = f.EnclosingEntity.Value
         let typeHasMfv (e: FSharpExpr) =
             if e.Type.HasTypeDefinition then
                 e.Type.TypeDefinition.MembersFunctionsAndValues
@@ -1168,7 +1169,7 @@ process dictionary call the Ref.release() method.
         match decl with
         | MemberOrFunctionOrValue (HasModCallAttribute(args, memb),
                                    Parameters ps, _expr) ->
-            let ee = memb.EnclosingEntity
+            let ee = memb.EnclosingEntity.Value
             let ctx = Ctx.init ee.FullName
             let functionName = functionName memb
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
@@ -1186,7 +1187,7 @@ process dictionary call the Ref.release() method.
         | MemberOrFunctionOrValue (IsCtor memb, Parameters ps,
                                    B.Sequential (first,  body)) ->
             // first it calls the base constructor
-            let ee = memb.EnclosingEntity
+            let ee = memb.EnclosingEntity.Value
             let ctx = Ctx.init ee.FullName
 
             let fieldSet fld v o =
@@ -1243,7 +1244,7 @@ process dictionary call the Ref.release() method.
 
         | MemberOrFunctionOrValue (memb, Parameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
-            let ee = memb.EnclosingEntity
+            let ee = memb.EnclosingEntity.Value
             let ctx = Ctx.init ee.FullName
             let functionName = functionName memb
             let ps =
