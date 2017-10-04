@@ -21,34 +21,38 @@
 -type option() :: term() | undefined.
 
 %% ('T -> 'U option) -> 'T option -> 'U option
-bind(Elevate,O) when O =/= undefined -> Elevate(O);
-bind(_,O) when O =:= undefined -> undefined.
+bind(_Binder, undefined) -> undefined;
+bind(Binder, O) -> Binder(O).
 
 %% count : 'T option -> int
-count(O) when O =/= undefined -> 1;
-count(O) when O =:= undefined -> 0.
+count(undefined) -> 0;
+count(_O) -> 1.
 
 %% exists : ('T -> bool) -> 'T option -> bool
-exists(_,O) when O =:= undefined -> false;
-exists(Pred,O) when O =/= undefined -> Pred(O).
+exists(_, undefined) -> false;
+exists(Pred, O) -> Pred(O).
 
 %% filter : ('T -> bool) -> option:'T option -> 'T option
 %% TODO : Verify the correctness
-filter(_,O) when O =:= undefined -> undefined;
-filter(Pred,O) when O =/= undefined -> Pred(O).
+filter(_Pred, undefined) -> undefined;
+filter(Pred, O) ->
+    case Pred(O) of
+        true -> O;
+        false -> undefined
+    end.
 
 
 %% fold : ('State -> 'T -> 'State) -> 'State -> 'T option -> 'State
-fold(_,State,O) when O =:= undefined -> State;
-fold(Fold,State,O) when O =/= undefined -> Fold(State,O).
+fold(_Folder, State, undefined) -> State;
+fold(Folder, State, O) -> Folder(State, O).
 
 %% foldBack : ('T -> 'State -> 'State) -> 'T option -> 'State -> 'State
-foldBack(_,O,State) when O =:= undefined -> State;
-foldBack(Fold,O,State) when O =/= undefined -> Fold(O,State).
+foldBack(_, undefined, State) -> State;
+foldBack(Folder, O, State) -> Folder(O, State).
 
 %% forall : ('T -> bool) -> 'T option -> bool
-forall(_,O) when O =:= undefined -> true;
-forall(Pred,O) when O =/= undefined -> Pred(O).
+forall(_, undefined) -> true;
+forall(Pred, O) -> Pred(O).
 
 -spec get(option()) -> term().
 get(O) when O =/= undefined ->
@@ -59,18 +63,18 @@ isNone(O) -> O =:= undefined.
 isSome(O) -> O =/= undefined.
 
 %% iter : ('T -> unit) -> 'T option -> unit
-iter(_,O) when O =:= undefined -> unit;
-iter(Action,O) when O =/= undefined -> Action(O).
+iter(_, undefined) -> unit;
+iter(Action, O) -> Action(O).
 
 %% map : ('T -> 'U) -> 'T option -> 'U option
-map(_,O) when O =:= undefined -> undefined;
-map(Mapping,O) when O =/= undefined -> Mapping(O).
+map(_, undefined) -> undefined;
+map(Mapping, O) -> Mapping(O).
 
 %% TODO : Implement once RFC has been settled
-%% toArray(O) ->
+% toArray(undefined) -> array:new(0, []);
 
-toList(O) when O =:= undefined -> [];
-toList(O) when O =/= undefined -> [O].
+toList(undefined) -> [];
+toList(O) -> [O].
 
 
 %% TODO : Implement once Nullable type is defined
