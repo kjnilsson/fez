@@ -40,9 +40,9 @@
          map2/3,
          mapi/2,
          max/1,
-         % maxBy/2,
+         maxBy/2,
          min/1,
-         % minBy/2,
+         minBy/2,
          nth/2,
          % ofArray/1,
          ofList/1,
@@ -57,7 +57,7 @@
          sort/1,
          %sortBy/2,
          sum/1,
-         %sumBy/2,
+         sumBy/2,
          tail/1,
          take/2,
          takeWhile/2,
@@ -68,7 +68,7 @@
          tryFindIndex/2,
          tryPick/2,
          unfold/2,
-         %where/2,
+         where/2,
          windowed/2, % returns arrays
          zip/2,
          zip3/3,
@@ -130,6 +130,9 @@ sort(Seq) ->
 sum(Seq) ->
     aggregate(seq(Seq), 0, fun erlang:'+'/2).
 
+sumBy(Proj, Seq) ->
+    aggregate(seq(Seq), 0, fun (Acc, V) -> Acc + Proj(V) end).
+
 map(F, Seq) ->
     {seq, {map, F, seq(Seq)}}.
 
@@ -145,10 +148,51 @@ max(Seq) ->
                               end).
 
 
+maxBy(Proj, Seq) ->
+    {_, Res} = reduce_internal(seq(Seq), fun ({P, _} = Acc, C0) ->
+                                                 C = Proj(C0),
+                                                 case C > P of
+                                                     true -> {C, C0};
+                                                     false -> Acc
+                                                 end;
+                                             (V, C0) ->
+                                                 C = Proj(C0),
+                                                 P = Proj(V),
+                                                 case C > Proj(P) of
+                                                     true -> {C, C0};
+                                                     false -> {P, V}
+                                                 end
+                                         end),
+    Res.
+
 min(Seq) ->
     reduce_internal(seq(Seq), fun (C, Acc) when C < Acc -> C;
                                   (_, Acc) -> Acc
                               end).
+minBy(Proj, Seq) ->
+    {_, Res} = reduce_internal(seq(Seq), fun ({P, _} = Acc, C0) ->
+                                                 C = Proj(C0),
+                                                 case C < P of
+                                                     true -> {C, C0};
+                                                     false -> Acc
+                                                 end;
+                                             (V, C0) ->
+                                                 C = Proj(C0),
+                                                 P = Proj(V),
+                                                 case C > Proj(P) of
+                                                     true -> {C, C0};
+                                                     false -> {P, V}
+                                                 end
+                                         end),
+    Res.
+% minBy(Proj, Seq) ->
+%     reduce_internal(seq(Seq), fun (C0, Acc) ->
+%                                       C = Proj(C0),
+%                                       case C < Acc of
+%                                           true -> C0;
+%                                           false -> Acc
+%                                       end
+%                               end).
 
 nth(Num, Seq) ->
     item_internal(Num, seq(Seq)).
@@ -180,6 +224,9 @@ exactlyOne(Seq0) ->
 
 filter(Pred, Seq) ->
     {seq, {filter, Pred, seq(Seq)}}.
+
+where(Pred, Seq) ->
+    filter(Pred, Seq).
 
 find(Pred, Seq) ->
     case find_internal(seq(Seq), Pred) of
@@ -767,6 +814,8 @@ basics_test() ->
     [4,8,12] = toList(MapSeq2),
     Filter8 = filter(fun(N) -> N =:= 8 end, MapSeq2),
     [8] = toList(Filter8),
+    Filter8_B = where(fun(N) -> N =:= 8 end, MapSeq2),
+    [8] = toList(Filter8_B),
     Appended = append(ListSeq, MapSeq),
     [1,2,3,2,4,6] = toList(Appended),
     [1,2,3] = toList(delay(fun () -> ofList([1,2,3]) end)),
@@ -786,6 +835,9 @@ sum_test() ->
     S = seq([1,2,3]),
     6 = sum(S),
     0 = sum([]),
+    Proj = fun(A, B) -> A + B + B end,
+    0 = sumBy(Proj, []),
+    0 = sumBy(Proj, []),
     ok.
 
 reduce_test() ->
@@ -930,6 +982,8 @@ nth_test() ->
 min_max_test() ->
     1 = min([1,2,3]),
     3 = max([1,2,3]),
+    3 = maxBy(fun (X) -> X + X end, [3,1,2,0]),
+    1 = minBy(fun (X) -> X + X end, [1,2,3]),
     ?assertException(throw, {'System.ArgumentException', _}, min([])),
     ?assertException(throw, {'System.ArgumentException', _}, max([])),
     ok.
