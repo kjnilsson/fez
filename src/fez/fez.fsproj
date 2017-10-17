@@ -1,8 +1,8 @@
-﻿<Project Sdk="FSharp.NET.Sdk;Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp1.1</TargetFramework>
-    <RuntimeIdentifiers>win7-x64;osx.10.10-x64;debian.8-x64</RuntimeIdentifiers>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="cerl.fs" />
@@ -12,8 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FSharp.Compiler.Service" Version="*" />
-    <PackageReference Include="FSharp.Core" Version="*" />
-    <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\fez.core\fez.core.fsproj" />

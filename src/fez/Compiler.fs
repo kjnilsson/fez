@@ -60,6 +60,7 @@ module Util =
             "-r:" + resolve "System.Reflection"
             "-r:" + resolve "System.Runtime"
             "-r:" + resolve "System.Runtime.Numerics"
+            "-r:" + resolve "System.Runtime.Extensions"
             "-r:" + resolve "System.Threading"
             "-r:" + resolve "System.Threading.Tasks"
             "-r:" + resolve "System.Text.RegularExpressions"
@@ -144,6 +145,7 @@ module Compiler =
         else None
 
     let check (checker : FSharpChecker) options (FullPath file) fileContents =
+        printfn "checking with options %A" options
         let res = checker.ParseAndCheckProject options |> run
         if not (Array.isEmpty res.Errors) || res.HasCriticalErrors then
             failwithf "Errs %A" res.Errors
