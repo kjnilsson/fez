@@ -40,7 +40,7 @@ prep-releases:
 
 rids := win-x64 osx-x64 linux-x64
 
-$(rids): prep-releases
+$(rids): prep-releases ebin
 	rm -rf tmp && \
 	dotnet publish $(FEZ) --self-contained -c Release -r $@ -o ../../tmp/$@ && \
 	cd tmp && \
