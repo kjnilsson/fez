@@ -2,5 +2,5 @@
 # vi: ft=bash
 
 set -e
-dotnet run -p src/fez/fez.fsproj $@
+dotnet run -p src/fez/fez.fsproj -- compile $@
 

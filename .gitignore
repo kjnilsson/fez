@@ -26,3 +26,4 @@ msbuild.err
 msbuild.wrn
 .erlang.mk
 out/
+release/

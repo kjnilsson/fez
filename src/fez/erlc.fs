@@ -11,11 +11,7 @@ let writeErlangCoreFile dir name text =
     path
 
 /// Calls erlc with all generated files
-let call outputPath files =
-    let output =
-        match outputPath with
-        | Some outputPath -> outputPath
-        | _ -> failwithf "Output path was not set."
+let call output files =
 
     if Seq.isEmpty files then () else
     let out = new System.Collections.Generic.List<_>()
@@ -23,15 +19,15 @@ let call outputPath files =
     use proc = new Process()
     proc.StartInfo.UseShellExecute <- false
     proc.StartInfo.FileName <- "erlc"
-    proc.StartInfo.Arguments <- 
-        let mutable args = sprintf "-v -o \"%s\"" output 
+    proc.StartInfo.Arguments <-
+        let mutable args = sprintf "-v -o \"%s\"" output
         for file in files do
             args <- args + sprintf " \"%s\"" file
         args
     proc.StartInfo.WorkingDirectory <- output
     proc.StartInfo.RedirectStandardOutput <- true
     proc.StartInfo.RedirectStandardError <- true
-    
+
     proc.ErrorDataReceived.Add(fun d -> if not (isNull d.Data) then errors.Add d.Data)
     proc.OutputDataReceived.Add(fun d -> if not (isNull d.Data) then out.Add d.Data)
     proc.Start() |> ignore

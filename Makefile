@@ -24,8 +24,6 @@ build: ebin
 	dotnet build $(FEZ_CORE)
 	dotnet build $(FEZ)
 
-
-
 test:
 	./run-tests.sh
 

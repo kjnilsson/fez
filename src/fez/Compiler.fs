@@ -70,7 +70,7 @@ module Util =
 
     let projectOptions (checker: FSharpChecker) files =
         {FSharpProjectOptions.ProjectFileName = "Test"
-         SourceFiles = files
+         SourceFiles = List.toArray files
          Stamp = Some 0L
          (* ProjectFileNames = [||] *)
          OtherOptions =
@@ -145,7 +145,6 @@ module Compiler =
         else None
 
     let check (checker : FSharpChecker) options (FullPath file) fileContents =
-        printfn "checking with options %A" options
         let res = checker.ParseAndCheckProject options |> run
         if not (Array.isEmpty res.Errors) || res.HasCriticalErrors then
             failwithf "Errs %A" res.Errors
@@ -1223,7 +1222,7 @@ process dictionary call the Ref.release() method.
                     let field = td.FullName + "." + f.Name |> litAtom |> constr
                     let v, nm = processExpr ctx e
                     yield fieldSet field v thisExps |> constr
-                | x -> eprintfn "doCtor not done %A" x
+                | x -> eprintfn "Constructor: not done %A" x
             ]
 
             let body =
