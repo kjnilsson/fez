@@ -22,7 +22,7 @@ for some discussions on potential implementation approaches.
 #### Requirements
 
 * [.NET core](https://dotnet.github.io/)
-* [erlang 19+](https://www.erlang.org/downloads)
+* [erlang 20+](https://www.erlang.org/downloads)
 
 
 ```
@@ -49,6 +49,32 @@ To run the tests:
 ./run-tests.sh
 
 ```
+
+
+#### Self contained releases
+
+See [releases page](https://github.com/kjnilsson/fez/releases).
+
+Download and extract the zip for your operating system. Then run: `fez help` to
+see the available commands and options.
+
+To compile:
+
+```
+fez compile <files>
+
+```
+
+The module can then be run used in an erlang shell. The release ships with a
+set of `.beam` files that need to be included. E.g:
+
+```
+
+erl -pa <path_to_fez>/ebin
+
+```
+
+
 
 ### What works?
 
