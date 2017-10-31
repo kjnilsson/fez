@@ -7,7 +7,7 @@
     choose/2,
     chunkBySize/2,
     collect/2,
-    comparewith/3,
+    compareWith/3,
     concat/1,
     contains/2,
     countBy/2,
@@ -105,14 +105,14 @@ collect(Fun, L) ->
   lists:flatten(lists:map(Fun, L)).
 
 
-comparewith(Fun, [H1|T1], [H2|T2]) ->
+compareWith(Fun, [H1|T1], [H2|T2]) ->
   case Fun(H1, H2) of
-    0 -> comparewith(Fun, T1, T2) ;
+    0 -> compareWith(Fun, T1, T2) ;
     X -> X
   end;
-comparewith(_, [], []) -> 0;
-comparewith(_, [], _) -> -1;
-comparewith(_, _, []) -> 1.
+compareWith(_, [], []) -> 0;
+compareWith(_, [], _) -> -1;
+compareWith(_, _, []) -> 1.
 
 
 concat(SeqOfList) ->
