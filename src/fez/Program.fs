@@ -17,10 +17,27 @@ type ErlOpts =
     { Args : string list }
 
 type FezCmd =
+    | Init
     | Help
     | Compile of FezCompileOpts
     | Erl of ErlOpts
 
+let projectTemplate = """<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="code.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="{{FEZ_CORE}}" />
+  </ItemGroup>
+
+</Project>
+"""
 
 module Args =
     let (|Contains|_|) what l =
@@ -53,11 +70,18 @@ module Args =
             parseCompile args
         | "erl" :: args ->
             Erl {Args = args}
+        | "init" :: args ->
+            Init
         | _ ->
             Help
 
     let help = """
 USAGE:
+    fez init
+        Creates a dotnet core 2.0.0 fsharp project file in the current directory
+        with a reference to the Fez.Core library. Requires dotnet to be installed
+        and available in PATH.
+
     fez compile <options> <files>
         Compiles fsharp files to core erlang and beam.
 
@@ -72,33 +96,54 @@ USAGE:
         Shows this text.
 """
 
+let relFromFez p =
+    let t = typeof<FezCmd>
+    let loc = Path.GetDirectoryName(t.Assembly.Location)
+    Path.Combine(loc, p)
+
+let runW p a =
+    let proc = new System.Diagnostics.Process()
+    proc.StartInfo.UseShellExecute <- false
+    proc.StartInfo.CreateNoWindow <- true
+    proc.StartInfo.FileName <- p
+    proc.StartInfo.Arguments <- a
+    proc.Start() |> ignore
+    proc.WaitForExit()
 
 [<EntryPoint>]
 let main argv =
     try
         match Args.parse argv with
+        | Init ->
+            // find name of current directory
+            let curDir = Directory.GetCurrentDirectory()
+            let dirName = Path.GetFileName(curDir)
+            let parentDir = Directory.GetParent curDir
+            let fezCorePath = relFromFez "Fez.Core.dll"
+            // make replacements and create project file
+            let t = projectTemplate.Replace("{{FEZ_CORE}}", fezCorePath)
+            let p = Path.Combine(curDir, dirName + ".fsproj")
+            printfn "fez: init %s" p
+            File.WriteAllText (p, t)
+            // create code file
+            File.WriteAllText (Path.Combine(curDir, "code.fs"), "module code")
+            // run dotnet restore && dotnet build
+            printfn "fez: running dotnet restore"
+            runW "dotnet" ("restore " + p)
+            0
         | Help ->
             printfn "%s" Args.help
             0
         | Erl {Args = args} ->
-            let proc = new System.Diagnostics.Process()
-            proc.StartInfo.UseShellExecute <- false
-            proc.StartInfo.CreateNoWindow <- true
-            proc.StartInfo.FileName <- "erl"
             let mutable sargs = " "
             for a in args do
                 sargs <- sargs + sprintf " \"%s\"" a
-            let t = typeof<FezCmd>
-            let loc = Path.GetDirectoryName(t.Assembly.Location)
-            let ebin = Path.Combine(loc, "ebin")
+            let ebin = relFromFez "ebin"
             if Directory.Exists ebin then
                 sargs <- sargs + sprintf " -pa \"%s\"" ebin
             else
                 printfn "WARN: fez ebin directory %s not found\n" ebin
-
-            proc.StartInfo.Arguments <- sargs
-            proc.Start() |> ignore
-            proc.WaitForExit()
+            runW "erl" sargs
             0
         | Compile { Files = [] } ->
             eprintfn "fez compile: no files specificed!"
