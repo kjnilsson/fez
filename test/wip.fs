@@ -15,28 +15,39 @@ open Fez.Core
 (*     let s1 = set [1;2;3] *)
 (*     let s2 = set [2] *)
 (*     Set.toList(s1 - s2) *)
+let apply f x = f x
+let ($) = apply
 
-[<ErlangTerm(IncludeTagsWithTuples=true)>]
-type SomeTerm =
-    | Native
-    | EXIT
-    | Integer of int
-    | Tupl of int * string
+let test i =
+  ((+) 5) $ i
 
-[<ErlangTerm>]
-type SomeTerm1 =
-    | Int of int
-    | Tuple of int * string
+let test2 i =
+    ($) ((+) 5) i
 
-let et () =
-    EXIT, Integer 42, Tupl (32, "hi"), Tuple (32, "ho")
+type Empty() =
+    class end
 
-let etf =
-    function
-    | Native -> "native"
-    | EXIT -> "EXIT"
-    | Integer i -> "{integer, i}"
-    | Tupl (i, s) -> "{tupl, i, s}"
+(* [<ErlangTerm(IncludeTagsWithTuples=true)>] *)
+(* type SomeTerm = *)
+(*     | Native *)
+(*     | EXIT *)
+(*     | Integer of int *)
+(*     | Tupl of int * string *)
+
+(* [<ErlangTerm>] *)
+(* type SomeTerm1 = *)
+(*     | Int of int *)
+(*     | Tuple of int * string *)
+
+(* let et () = *)
+(*     EXIT, Integer 42, Tupl (32, "hi"), Tuple (32, "ho") *)
+
+(* let etf = *)
+(*     function *)
+(*     | Native -> "native" *)
+(*     | EXIT -> "EXIT" *)
+(*     | Integer i -> "{integer, i}" *)
+(*     | Tupl (i, s) -> "{tupl, i, s}" *)
 
 
 (* open Fez.Core *)
@@ -133,7 +144,7 @@ let etf =
 (*         e.Message *)
 (*     | e -> *)
 (*         e.Message + "system.exception" *)
-
+(*
 type O (s:  string) =
     let f = "A"
     member __.Test () = f + s
@@ -177,7 +188,7 @@ let testOO () =
     // ("A", "B", "C", "C", "C", "C", "C")
     a.Test(), b.Test(), c.Test(), (c :> A).Test(), d.Test(), (d :> A).Test(), d.TestIt()
 
-
+*)
 (* let ex() = *)
 (*     let x = SomeEx(12, "msg") :?> SomeEx *)
 (*     x.Message *)

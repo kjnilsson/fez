@@ -13,9 +13,13 @@ type FezCompileOpts =
       Files : string list
     }
 
+type ErlOpts =
+    { Args : string list }
+
 type FezCmd =
     | Help
     | Compile of FezCompileOpts
+    | Erl of ErlOpts
 
 
 module Args =
@@ -47,18 +51,22 @@ module Args =
         match Array.toList args with
         | ("compile" | "c")  :: args ->
             parseCompile args
+        | "erl" :: args ->
+            Erl {Args = args}
         | _ ->
             Help
 
     let help = """
 USAGE:
     fez compile <options> <files>
-
         Compiles fsharp files to core erlang and beam.
 
         OPTIONS:
             -o | --output       set output directory
             --nobeam            do not compile core files to beam
+
+    fez erl <args>
+        Launches the erlang shell with the appropriate search paths set.
 
     fez help
         Shows this text.
@@ -72,6 +80,26 @@ let main argv =
         | Help ->
             printfn "%s" Args.help
             0
+        | Erl {Args = args} ->
+            let proc = new System.Diagnostics.Process()
+            proc.StartInfo.UseShellExecute <- false
+            proc.StartInfo.CreateNoWindow <- true
+            proc.StartInfo.FileName <- "erl"
+            let mutable sargs = " "
+            for a in args do
+                sargs <- sargs + sprintf " \"%s\"" a
+            let t = typeof<FezCmd>
+            let loc = Path.GetDirectoryName(t.Assembly.Location)
+            let ebin = Path.Combine(loc, "ebin")
+            if Directory.Exists ebin then
+                sargs <- sargs + sprintf " -pa \"%s\"" ebin
+            else
+                printfn "WARN: fez ebin directory %s not found\n" ebin
+
+            proc.StartInfo.Arguments <- sargs
+            proc.Start() |> ignore
+            proc.WaitForExit()
+            0
         | Compile { Files = [] } ->
             eprintfn "fez compile: no files specificed!"
             printfn "%s" Args.help
@@ -82,7 +110,7 @@ let main argv =
             let outDir =
                 match outPath with
                 | None ->
-                    Path.GetFullPath(Path.GetDirectoryName(files.[0]))
+                    Path.GetDirectoryName(Path.GetFullPath(files.[0]))
                 | Some o -> o
 
             let checker = FSharpChecker.Create (keepAssemblyContents = true)
