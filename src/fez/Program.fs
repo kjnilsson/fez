@@ -75,6 +75,7 @@ module Args =
         | _ ->
             Help
 
+
     let help = """
 USAGE:
     fez init
@@ -95,6 +96,12 @@ USAGE:
     fez help
         Shows this text.
 """
+
+
+let codeTempl = """module code
+open Fez.Core
+"""
+
 
 let relFromFez p =
     let t = typeof<FezCmd>
@@ -123,18 +130,18 @@ let main argv =
             // make replacements and create project file
             let t = projectTemplate.Replace("{{FEZ_CORE}}", fezCorePath)
             let p = Path.Combine(curDir, dirName + ".fsproj")
-            printfn "fez: init %s" p
+            printfn "fez init: %s\n" p
             File.WriteAllText (p, t)
             // create code file
-            File.WriteAllText (Path.Combine(curDir, "code.fs"), "module code")
+            File.WriteAllText (Path.Combine(curDir, "code.fs"), codeTempl)
             // run dotnet restore && dotnet build
-            printfn "fez: running dotnet restore"
+            printfn "fez init: running dotnet restore\n"
             runW "dotnet" ("restore " + p)
             0
         | Help ->
             printfn "%s" Args.help
             0
-        | Erl {Args = args} ->
+        | Erl { Args = args } ->
             let mutable sargs = " "
             for a in args do
                 sargs <- sargs + sprintf " \"%s\"" a
@@ -142,7 +149,7 @@ let main argv =
             if Directory.Exists ebin then
                 sargs <- sargs + sprintf " -pa \"%s\"" ebin
             else
-                printfn "WARN: fez ebin directory %s not found\n" ebin
+                eprintfn "WARN: fez ebin directory %s not found\n" ebin
             runW "erl" sargs
             0
         | Compile { Files = [] } ->
