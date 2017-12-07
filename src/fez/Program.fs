@@ -10,6 +10,7 @@ open Microsoft.FSharp.Compiler.SourceCodeServices.BasicPatterns
 type FezCompileOpts =
     { OutputPath : string option
       NoBeam : bool
+      DumpAst : bool
       Files : string list
     }
 
@@ -55,11 +56,14 @@ module Args =
                 inner {opts with OutputPath = Some outPath } tail
             | "--nobeam" :: tail ->
                 inner {opts with NoBeam = true } tail
+            | ("-a" | "--dump-ast") :: tail ->
+                inner {opts with DumpAst = true } tail
             | files ->
                 {opts with Files = files }
 
         inner { OutputPath = None
                 NoBeam = false
+                DumpAst = false
                 Files = [] } argv
         |> Compile
 
@@ -89,6 +93,7 @@ USAGE:
         OPTIONS:
             -o | --output       set output directory
             --nobeam            do not compile core files to beam
+            -a | --dump-ast     prints the fsharp typed AST to stdout
 
     fez erl <args>
         Launches the erlang shell with the appropriate search paths set.
@@ -158,7 +163,8 @@ let main argv =
             0
         | Compile { Files = files
                     OutputPath = outPath
-                    NoBeam = noBeam } as c ->
+                    NoBeam = noBeam
+                    DumpAst = dumpAst } as c ->
             let outDir =
                 match outPath with
                 | None ->
@@ -173,6 +179,8 @@ let main argv =
                     let res = check checker options file fileContents
                     for i in res.AssemblyContents.ImplementationFiles do
                         for decl in i.Declarations do
+                            if dumpAst then
+                                printfn "AST: %A" decl
                             yield! doDecl decl ]
                 |> List.groupBy (fun fd -> fd.Module)
                 |> List.map (fun (modName, fds) ->
