@@ -156,11 +156,11 @@ module Compiler =
         else s
 
     let fezUnit =
-        cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "fez_unit"))))
+        cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "unit"))))
 
     let (|IsFezUnit|_|) e =
         match e with
-        | cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "fez_unit")))) ->
+        | cerl.Exp (cerl.Constr (cerl.Lit (cerl.LAtom (cerl.Atom "unit")))) ->
             Some e
         | _ -> None
 
@@ -450,7 +450,7 @@ module Compiler =
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
         | null -> //unit
-            litAtom "fez_unit" //Special casing a value here for unit for now
+            litAtom "unit" //Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
 
     let ioLibFormat nm str t args =
@@ -608,17 +608,12 @@ module Compiler =
                     //method on type rather than nested module
                     fe.LogicalName + "." + f.LogicalName
             //add callee as first arg if method dispatch
-            //TODO: refactor - stale
             let args, nm =
                 let args, nm =
                     eraseUnit exprs
                     |> foldNames nm processExpr
                 let args = args |> stripFezUnit |> List.map (flattenLambda [])
-                match callee with
-                | Some o ->
-                    let o, nm = processExpr nm o
-                    o :: args, nm
-                | None -> args, nm
+                args, nm
             let numArgs = List.length args
             let func, nm = mkFunction nm name numArgs
             let func = func |> cerl.Fun |> constr
@@ -629,7 +624,7 @@ module Compiler =
             let args, nm =
                 eraseUnit exprs
                 |> foldNames nm processExpr
-            // remove fez_unit
+            // remove unit
             // flatten any lambda args
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
             let m = fe.FullName |> safeAtom
@@ -1057,7 +1052,7 @@ process dictionary call the Ref.release() method.
         | B.Lambda (IsUnitArg p, expr) ->
             let unitName, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
-            // wrap body in let so that unit arg is mapped to fez_unit
+            // wrap body in let so that unit arg is mapped to unit
             let body = mkLet unitName fezUnit body |> constr
             cerl.Lambda ([], body) |> constr, nm
         | B.Lambda (p, expr) ->

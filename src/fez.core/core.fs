@@ -32,6 +32,9 @@ let spawn (f : unit -> unit) : Pid =
 let self () = P
 
 let send<'T> (dst: Pid) (msg: 'T) : unit =
+    // in erlang `send` returns the msg
+    // in fsharp this would just cause a warning so we
+    // just return unit instead
     ()
 
 let (<!) = send

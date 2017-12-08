@@ -21,7 +21,8 @@ spawn(F) -> erlang:spawn(F).
 'op_LessBang'() ->
     fun (Dst) ->
             fun (Msg) ->
-                Dst ! Msg
+                Dst ! Msg,
+                unit
             end
     end.
 
