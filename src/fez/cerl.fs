@@ -95,7 +95,7 @@ and Guard = Guard of Exps
 
 and Pats =
     | Pat of Pat    // ^ single pattern
-    | Pats of List<Pat> // ^ list of patterns
+    | Pats of Pat list // ^ list of patterns
 with
     static member prt pats =
         match pats with
@@ -105,31 +105,20 @@ with
             |> String.concat ","
             |> sprintf "<%s>"
 
-and Alt = Alt of Pats * Guard * Exps
-with
-    static member prt ((Indent indent) as i) (Alt (pats, Guard guardExps, exps)) =
-        let pat = Pats.prt pats
-        let guard = Exps.prt 0 guardExps
-        let body = Exps.prt (i+4) exps
-        sprintf "%s%s when %s ->%s%s%s" indent pat guard nl body nl
-
-and TimeOut = TimeOut of Exps * Exps
-with
-    static member prt ((Indent indent) as i) (TimeOut (e, b)) =
-        let i4 = i+4
-        let e = Exps.prt 0 e
-        let b = Exps.prt i4 b
-        sprintf "%safter %s ->%s%s%s" indent e nl indent b
-
 and Ann<'T> =
     | Constr of 'T      // ^ core erlang construct
     | Ann of 'T * List<Const> // ^ core erlang annotated construct
+    static member prt p ann : string =
+        match ann with
+        | Constr t -> p t
+        | Ann (t, _) -> p t
 
 and Function = Function of Atom * int
 with
-    static member prt ((Indent indent) as i)
+    static member prt (Indent indent as i)
                       (Function (Atom name, arity)) =
         sprintf "%s'%s'/%i" indent name arity
+
 
 // | CoreErlang expression.
 and Exp =
@@ -202,19 +191,23 @@ and Exp =
         | Case (caseExpr, alts) ->
             let caseExpr = Exps.prt i4 caseExpr
             let alts =
-                List.fold(fun s a ->
+                alts
+                |> List.fold(fun s a ->
                     match a with
                     | Constr a ->
-                        let x = Alt.prt (i+4) a
+                        let x = Alt.prt (i+4, a)
                         sprintf "%s%s" s x
-                    | x -> failwithf "not imple %A" x) "" alts
+                    | Ann (a, _) ->
+                        let x = Alt.prt (i+4, a)
+                        sprintf "%s%s" s x) ""
+                        (* failwithf "not imple %A" x) "" alts *)
             sprintf "%scase%s%s of%s%s%send" indent nl caseExpr nl alts indent
         | Receive (alts, after) ->
             let alts =
                 List.fold(fun s a ->
                     match a with
                     | Constr a ->
-                        let x = Alt.prt (i+4) a
+                        let x = Alt.prt (i+4, a)
                         sprintf "%s%s" s x
                     | x -> failwithf "not imple %A" x) "" alts
             let t = TimeOut.prt i after
@@ -233,7 +226,7 @@ and Exp =
             let s = Exps.prt i4 second
             sprintf "%sdo%s%s%s%s" indent nl f nl s
         | LetRec (funs, e) ->
-            let f = funs |> List.map (FunDef.prt i4) |> String.concat nl
+            let f = funs |> List.map (fun f -> FunDef.prt (i4, f)) |> String.concat nl
             let e = Exps.prt i4 e
             sprintf "%sletrec%s%s%sin%s%s" indent nl f indent nl e
         | Catch e ->
@@ -252,6 +245,9 @@ and Exps =
     | Exp of Ann<Exp> // single expression
     | Exps of Ann<Ann<Exp> list> // annotated list of expressions
     with
+
+    (* static member fromVar (v : Var) = *)
+    (*     Exps (Constr (Var v)) *)
     static member empty =
         Exps (Constr [])
     static member prt ((Indent indent) as i) expr =
@@ -266,11 +262,23 @@ and Exps =
                                 | _ -> None)
             let commaNl = "," + nl
             sprintf "%s<%s%s>" indent nl (String.concat commaNl exps)
+        | Exps (Ann (exps, anns)) ->
+            let exps = exps |> List.map (Ann.prt (Exp.prt (i+1)))
+            let commaNl = "," + nl
+            sprintf "%s<%s%s>" indent nl (String.concat commaNl exps)
         | x -> failwithf "Exps.prt not impl: %A" x
+
+and TimeOut = TimeOut of Exps * Exps
+with
+    static member prt ((Indent indent) as i) (TimeOut (e, b)) =
+        let i4 = i+4
+        let e = Exps.prt 0 e
+        let b = Exps.prt i4 b
+        sprintf "%safter %s ->%s%s%s" indent e nl indent b
 
 and FunDef = FunDef of Ann<Function> * Ann<Exp>
     with
-    static member prt ((Indent indent) as i) (FunDef (def, expr)) =
+    static member prt (Indent indent as i, FunDef (def, expr)) =
         match (def, expr) with
         | (Constr f, Constr e) ->
             let i4 = i+4
@@ -279,7 +287,16 @@ and FunDef = FunDef of Ann<Function> * Ann<Exp>
             sprintf "%s =%s%s%s" fp nl ep nl
         | _ -> failwith "Ann not implemented"
 
-and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
+and Alt = Alt of Pats * Guard * Exps
+with
+    static member prt (((Indent indent) as i),
+                       (Alt (pats, Guard guardExps, exps))) =
+        let pat = Pats.prt pats
+        let guard = Exps.prt 0 guardExps
+        let body = Exps.prt (i+4) exps
+        sprintf "%s%s when %s ->%s%s%s" indent pat guard nl body nl
+
+type Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
     with
     static member prt (Module (Atom name, funs, attribs, defs)) =
         [ let indent = 11 + name.Length
@@ -294,7 +311,7 @@ and Module = Module of Atom * List<Function> * List<Atom * Const> * List<FunDef>
           yield ""
           yield "    attributes []" //TODO:
           for d in defs do
-              yield FunDef.prt 0 d |> sprintf "%s"
+              yield FunDef.prt (0, d) |> sprintf "%s"
           yield "end"
         ]
 
@@ -323,8 +340,14 @@ let constr x =
 
 let altExpr x = Constr <| Alt x
 
+
+
+
 let litAtom name =
     Lit (LAtom (Atom name))
+
+let matchFail x : Exp =
+    (Op (Atom "match_fail", x))
 
 let wrap a (Guard b) =
     let alt1 = altExpr (Pats [], a, b)

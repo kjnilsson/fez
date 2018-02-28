@@ -59,7 +59,7 @@ let addEight = add 3 << addFive
 let strLen (s: string) = s.Length
 let strLen2 s = String.length s
 let listLen (s: List<_>) = s.Length
-let strConcat(sep: string, strList:List<string>) = String.concat sep strList
+let strConcat sep strList = String.concat sep strList
 let hasAs str = String.exists (fun x -> x = 'A') str
 let allAs str = String.forall (fun x -> x = 'A') str
 let times8 str = String.replicate 8 str
@@ -514,3 +514,39 @@ let set_op_test() =
     let s1 = set [1;2;3]
     let s2 = set [2]
     Set.toList(s1 - s2)
+
+
+module EtsInterop =
+    [<ErlangTerm>]
+    type EtsName = | Interop_table
+
+    [<ErlangTerm>]
+    type EtsOption =
+        | Named_table
+        | Protected
+
+    [<ErlangTerm>]
+    type EtsRtn = True
+
+    [<ErlangTerm>]
+    type Tid =
+        | Tid
+        | TblName of EtsName
+
+    [<ModCall("ets", "new")>]
+    let etsNew (name: EtsName) (opts : EtsOption list) = Tid
+
+    [<ModCall("ets", "insert")>]
+    let etsInsert (tab: Tid) (k: string, v : string) = True
+
+    [<ModCall("ets", "lookup")>]
+    let etsLookup (tab: Tid) (key: string) : (string * string) list = []
+
+open EtsInterop
+
+let ets_tests () =
+    let tid = etsNew Interop_table [Named_table]
+    True = etsInsert tid ("k", "v") |> ignore
+    etsLookup tid "k"
+
+

@@ -1,6 +1,27 @@
 module wip
 open Fez.Core
 
+(* let flip f a b = f b a *)
+
+type S = S
+with
+    static member (-) (s1, s2) =
+        99
+
+let custom_op_test() =
+    let s1 = S
+    let s2 = S
+    s1 - s2
+
+type C () =
+    member c.hi(i : int, s: string) =
+        i + 1
+
+(* let rec sum n = *)
+(*     match n with *)
+(*     | 0 -> 0 *)
+(*     | n -> sum (n-1) + n *)
+
 (* type S = S *)
 (* with *)
 (*     static member (-) (s1, s2) = *)
@@ -15,17 +36,54 @@ open Fez.Core
 (*     let s1 = set [1;2;3] *)
 (*     let s2 = set [2] *)
 (*     Set.toList(s1 - s2) *)
-let apply f x = f x
-let ($) = apply
+(* let apply f x = f x *)
+(* let ($) = apply *)
 
-let test i =
-  ((+) 5) $ i
+(* let test i = *)
+(*   ((+) 5) $ i *)
 
-let test2 i =
-    ($) ((+) 5) i
+(* let test2 i = *)
+(*     ($) ((+) 5) i *)
 
-type Empty() =
-    class end
+(* type Empty() = *)
+(*     class end *)
+(* type T () = *)
+(*     member x.Memb3 (s: int, (b: bool, f: float)) y = *)
+(*         y + s *)
+
+(*     member x.Memb (s: string, b: bool) = *)
+(*         () *)
+
+[<ModCall("ets", "insert")>]
+let etsInsert (name : string) (key: string, value: int) =
+    ()
+
+let testets() =
+    etsInsert "banana" ("k", 3)
+
+(* let twoArgs x (t: (string * bool)) = *)
+(*     printfn "%A" t *)
+(*     () *)
+(* let noArg () = "" *)
+
+
+(* let callTwoargs () = *)
+(*     twoArgs "hi" ("", true) *)
+
+(* let tupleF (s: int) (b: bool, i: int) = *)
+(*     i + s *)
+
+(* type T() = *)
+(*     member x.test (i: int, s: string) = *)
+(*             x, i + 6, s *)
+(*     (1* tupleF 3 (true, 5) *1) *)
+
+(* let test() = *)
+(*     let t = T() *)
+(*     t.test(1, "") *)
+(* let callM () = *)
+(*     let t = T() *)
+(*     t.Memb("hi", true), t.Memb3 (3, (true, 1.)) *)
 
 (* [<ErlangTerm(IncludeTagsWithTuples=true)>] *)
 (* type SomeTerm = *)

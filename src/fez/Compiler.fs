@@ -136,6 +136,12 @@ module Compiler =
         else None
 
 
+    let (|HasModCallAttribute|_|) (m :  FSharpMemberOrFunctionOrValue) =
+        // TODO check all items in list
+        match Seq.toList m.Attributes with
+        | [a] when a.AttributeType.FullName = "Fez.Core.ModCall" ->
+            Some (Seq.toList a.ConstructorArguments, m)
+        | _ -> None
     (* let (|CaseName|) (c : FSharpUnionCase) = *)
     (*     c.CompiledName |> cerl.Atom *)
 
@@ -184,33 +190,6 @@ module Compiler =
             if x.FullName.StartsWith("unitVar") then None
             else Some x.FullName)
 
-    let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
-        let ps = pgs |> List.fold List.append []
-        match ps with
-        | [x] when x.FullName.StartsWith("unitVar") ->
-            []
-        | xs ->
-            xs |> List.map (fun x -> x.FullName)
-
-    let inspectT (t: FSharpType) =
-        t.TypeDefinition.Namespace,
-        t.TypeDefinition.CompiledName,
-        t.TypeDefinition.LogicalName,
-        t.TypeDefinition.FullName
-
-    let altExpr = cerl.altExpr
-
-    let boolPat tf = (cerl.Pat (cerl.PLit (cerl.LAtom (cerl.Atom tf))))
-
-    let mkName (name : string) num =
-        // TODO do replacements better
-        let name = name
-                    .Replace(''', '_')
-        if Char.IsUpper name.[0] then
-            sprintf "%s%i" name num
-        else
-            sprintf "_%s%i" name num
-
     type Ctx =
         { Module: string
           Names : Map<cerl.Var, int>
@@ -222,6 +201,15 @@ module Compiler =
                 Functions = Map.empty
                 Members = Set.empty}
 
+    let mkName (name : string) num =
+        // TODO do replacements better
+        let name = name
+                    .Replace(''', '_')
+        if Char.IsUpper name.[0] then
+            sprintf "%s%i" name num
+        else
+            sprintf "_%s%i" name num
+
     let safeVar incr ({Names = nameMap} as ctx) (x : cerl.Var) : cerl.Var * Ctx =
         match incr, nameMap with
         | false, Item x num ->
@@ -232,21 +220,56 @@ module Compiler =
         | _ ->
             mkName x 0, {ctx with  Names = Map.add x 0 nameMap}
 
-    let varExps name =
-        cerl.Constr (cerl.Var name) |> cerl.Exp
-
-    let uniqueName nm =
+    let uniqueName ctx =
         // TODO: append some random stuff to reduce the chance of name collisions
-        safeVar true nm "fez"
-
-    let mapArgs (ctx : Ctx) f xs =
-        List.map (f ctx >> fst) xs
+        safeVar true ctx "fez"
 
     let foldNames (ctx : Ctx) f xs =
         let xs, ctx = List.fold (fun (xs, nm) x ->
                                     let x, nm = f nm x
                                     x :: xs, nm) ([], ctx) xs
         List.rev xs, ctx
+
+    let altExpr = cerl.altExpr
+    let boolPat tf = (cerl.Pat (cerl.PLit (cerl.LAtom (cerl.Atom tf))))
+
+    type ArgType =
+        | Tupled of string list
+        | Singled of string
+
+    let (|FlatParameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
+            let ps = pgs |> List.fold List.append []
+            match ps with
+            | [x] when x.FullName.StartsWith("unitVar") ->
+                []
+            | xs ->
+                xs |> List.map (fun x -> x.FullName)
+    let (|Parameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
+        (* let ps = pgs |> List.fold List.append [] *)
+        match pgs with
+        | [[x]] when x.FullName.StartsWith("unitVar") ->
+            []
+        | xs ->
+            xs
+            |> List.map (function
+                         | [x] -> Singled x.FullName
+                         | args ->
+                            Tupled (args |> List.map (fun x -> x.FullName)))
+
+
+    let inspectT (t: FSharpType) =
+        t.TypeDefinition.Namespace,
+        t.TypeDefinition.CompiledName,
+        t.TypeDefinition.LogicalName,
+        t.TypeDefinition.FullName
+
+
+
+    let varExps name =
+        cerl.Constr (cerl.Var name) |> cerl.Exp
+
+    let mapArgs (ctx : Ctx) f xs =
+        List.map (f ctx >> fst) xs
 
     let constr x =
         cerl.Exp (cerl.Constr x)
@@ -334,6 +357,41 @@ module Compiler =
             |> Seq.map (fun cf -> cerl.PVar "_")
             |> Seq.toList
         cerl.PTuple (typeTag :: caseTag :: fields)
+
+    let wrapArgs (args: ArgType list) expsFun ctx =
+        let wrap ctx caseExps pat =
+            let e, ctx = expsFun ctx
+            let a1 = altExpr (pat, cerl.defaultGuard, e)
+            let a2 = altExpr (pat, cerl.defaultGuard,
+                              constr (cerl.matchFail [litAtom "function_clause" |> constr]))
+            // OTP 20 seems to require this third case. why?
+            cerl.Case(caseExps, [a1;a2]), ctx
+        // the args being passed into the function - just generate a random name here
+        let inArgs, ctx = foldNames ctx (fun nm _ -> uniqueName nm) args
+        let inter = inArgs |> List.map (cerl.Var >> cerl.Constr)
+        let caseExpr = cerl.Exps (cerl.Ann (inter, []))
+        if List.exists (function | Tupled _ -> true | _ -> false) args then
+            // there are tupled args we need to unpack them
+            let ms, ctx = args
+                          |> List.fold (fun (pats, ctx) ->
+                              function
+                              | Singled a ->
+                                  let a, ctx = safeVar false ctx a
+                                  cerl.PVar a :: pats, ctx
+                              | Tupled args ->
+                                  let x, ctx = foldNames ctx (safeVar false) args
+                                  let x = List.map cerl.PVar x
+                                  cerl.PTuple x :: pats, ctx) ([], ctx)
+
+            let ms = List.rev ms
+            let p = cerl.Pats ms
+            let e, ctx = wrap ctx caseExpr p
+            inArgs, constr e, ctx
+        else
+            let args = List.map (function | Singled a -> a | _ -> failwith "boo") args
+            let args, ctx = foldNames ctx (safeVar false) args
+            let e, ctx = expsFun ctx
+            args, e, ctx
 
     let mkTypeCheck (t: FSharpType) name =
         let ln = t.TypeDefinition.LogicalName
@@ -549,7 +607,8 @@ module Compiler =
         | None -> () ]
 
     let memberFunctionName (f:  FSharpMemberOrFunctionOrValue) =
-        sprintf "%s.%s" f.LogicalEnclosingEntity.LogicalName f.LogicalName |> safeAtom
+        sprintf "%s.%s" f.LogicalEnclosingEntity.LogicalName f.LogicalName
+        |> safeAtom
 
     //hacky way to check if a type is a library type and thus not implemented
     //in the same way as custom types
@@ -568,6 +627,35 @@ module Compiler =
                 |> Seq.exists (fun s -> s.LogicalName = f.LogicalName)
             else false
 
+        let rec makeTupleArgs (args : cerl.Exps list) parms acc =
+            match args, parms with
+            | [], _ ->
+                List.rev acc
+            | arg :: remArgs, parm :: parms ->
+                // single arg
+                match parm with
+                | [_] ->
+                    makeTupleArgs remArgs parms (arg :: acc)
+                | _ ->
+                    let arg =
+                        List.take (List.length parm) args
+                        |> cerl.Tuple |> constr
+                    makeTupleArgs (args.[List.length parm ..]) parms (arg :: acc)
+            | arg :: remArgs, [] ->
+                makeTupleArgs remArgs [] (arg :: acc)
+
+        let makeArgs nm (f : FSharpMemberOrFunctionOrValue) exprs =
+            let p = f.CurriedParameterGroups
+                    |> Seq.map Seq.toList |> Seq.toList
+            // each args expression needs its own context
+            let args =
+                mapArgs nm processExpr exprs
+            makeTupleArgs args p []
+
+        let makeFlatArgs ctx (_ : FSharpMemberOrFunctionOrValue) exprs =
+            // each args expression needs its own context
+            mapArgs ctx processExpr exprs
+
         match callee, f, exprs with
         //special case mapping + on a string to ++
         | _, Intr2Erl "+", ExprType "string" _ :: _ ->
@@ -575,13 +663,11 @@ module Compiler =
             let args, nm = foldNames nm processExpr exprs
             modCall erlang stringAppend args |> constr, nm
         // TODO: special case op_Equality to check for 'Equals' override
-        | _, _, e :: _ when f.LogicalName.StartsWith("op_") &&  typeHasMfv e ->
+        | _, _, e :: _ when f.LogicalName.StartsWith("op_") && typeHasMfv e ->
             // type has overriden operator
+            let args = makeFlatArgs nm f (eraseUnit exprs)
             let m = safeAtom e.Type.TypeDefinition.FullName
             let f = safeAtom f.LogicalName
-            let args, nm =
-                eraseUnit exprs
-                |> foldNames nm processExpr
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
             modCall m f args |> constr, nm
         | _, Intr2Erl x, e :: _ ->
@@ -609,9 +695,7 @@ module Compiler =
                     fe.LogicalName + "." + f.LogicalName
             //add callee as first arg if method dispatch
             let args, nm =
-                let args, nm =
-                    eraseUnit exprs
-                    |> foldNames nm processExpr
+                let args = makeFlatArgs nm f (eraseUnit exprs)
                 let args = args |> stripFezUnit |> List.map (flattenLambda [])
                 args, nm
             let numArgs = List.length args
@@ -621,9 +705,7 @@ module Compiler =
             constr app,nm
         | None, f, _  when f.IsExtensionMember ->
             // extension member
-            let args, nm =
-                eraseUnit exprs
-                |> foldNames nm processExpr
+            let args = makeFlatArgs nm f (eraseUnit exprs)
             // remove unit
             // flatten any lambda args
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
@@ -631,13 +713,29 @@ module Compiler =
             //member call
             let f = memberFunctionName f
             modCall m f args |> constr, nm
-        | None, f, _  -> //
-            // modulecall
-            let m = safeAtom fe.FullName
-            let f = safeAtom f.LogicalName
+        | None, IsCtor f, _  -> //
+            // ctors always use tupled args so we translate to
+            // arity version for efficiency
             let args, nm =
                 eraseUnit exprs
                 |> foldNames nm processExpr
+            // module call
+            let m = safeAtom fe.FullName
+            let f = safeAtom f.LogicalName
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+            modCall m f args |> constr, nm
+        | None, (HasModCallAttribute _ as f), _  ->
+            let args = makeArgs nm f (eraseUnit exprs)
+            // module call
+            let m = safeAtom fe.FullName
+            let f = safeAtom f.LogicalName
+            let args = args |> stripFezUnit |> List.map (flattenLambda [])
+            modCall m f args |> constr, nm
+        | None, f, _  -> //
+            let args = makeFlatArgs nm f (eraseUnit exprs)
+            // module call
+            let m = safeAtom fe.FullName
+            let f = safeAtom f.LogicalName
             let args = args |> stripFezUnit |> List.map (flattenLambda [])
             modCall m f args |> constr, nm
         | Some o, f, _ ->
@@ -645,7 +743,8 @@ module Compiler =
             // as the first argument to the function
             let name = f.LogicalName
             // each args expression needs its own context
-            let args = mapArgs nm processExpr (o :: exprs)
+            let args = makeFlatArgs nm f (exprs)
+            let oArg, ctx = processExpr nm o
             // flatten any lambda args
             let stripFezUnit args =
                 // first arg is the dispatch object
@@ -653,15 +752,16 @@ module Compiler =
                 match args with
                 | [o; IsFezUnit _] -> [o]
                 | args -> args
-            let args = args
+            let args = oArg :: args
                        |> stripFezUnit
                        |> List.map (flattenLambda [])
 
             let oType = nonAbbreviatedType o.Type
             if fe.IsInterface then
                 // use trait call for dispatch on inteface as it will use the
-                // embedded type info (if available) to dispatch the call to the right function
-                // Else we'd need a function of format: 'Module:InterfaceType.Member'
+                // embedded type info (if available) to dispatch the call to
+                // the right function else we'd need a function
+                // of format: 'Module:InterfaceType.Member'
                 traitCall name args |> constr, nm
             elif fe.IsClass && not <| isStandardLibraryType fe  then
                 // how to distinquish between standard sealed apis
@@ -782,6 +882,7 @@ module Compiler =
             let e, ctx = processExpr nm e
             cerl.Case(e, [alt1; alt2]) |> constr, ctx
         | B.Call (callee, f, _, argTypes, expressions) ->
+            printfn "Call %A %A"  f f.CurriedParameterGroups
             translateCall nm callee f argTypes expressions
         | B.TraitCall (types, name, flags, someTypes, argTypes, args) ->
             let args, nm = foldNames nm processExpr args
@@ -1145,12 +1246,14 @@ process dictionary call the Ref.release() method.
         | Mod of (string * cerl.Module) list
         | Skip
 
-    let (|HasModCallAttribute|_|) (m :  FSharpMemberOrFunctionOrValue) =
-        // TODO check all items in list
-        match Seq.toList m.Attributes with
-        | [a] when a.AttributeType.FullName = "Fez.Core.ModCall" ->
-            Some (Seq.toList a.ConstructorArguments, m)
-        | _ -> None
+
+    let rec hasTupledArg =
+        function
+        | (Tupled _ :: _) -> true
+        | [] -> false
+        | Singled _ :: rest ->
+            hasTupledArg rest
+
 
     let rec doFunDecl decl : FDef list =
         let functionName (memb: FSharpMemberOrFunctionOrValue)=
@@ -1163,14 +1266,16 @@ process dictionary call the Ref.release() method.
             |> safe
 
         match decl with
-        | MemberOrFunctionOrValue (HasModCallAttribute(args, memb),
+        | MemberOrFunctionOrValue (HasModCallAttribute (args, memb),
                                    Parameters ps, _expr) ->
             let ee = memb.EnclosingEntity.Value
             let ctx = Ctx.init ee.FullName
             let functionName = functionName memb
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
             let e2 = litAtom ((snd args.[1]) :?> string) |> constr
-            let args, ctx = foldNames ctx (safeVar true) ps
+            // the names of the arguments should not matter so just
+            // generate some unique names
+            let args, ctx = foldNames ctx (fun ctx _ -> uniqueName ctx) ps
             let e = modCall e1 e2 ((args |> List.map (cerl.Var >> constr))) |> constr
             let f, ctx = mkFunction ctx functionName (List.length ps)
             let l = lambda args e
@@ -1180,7 +1285,7 @@ process dictionary call the Ref.release() method.
               Arity = args.Length
               IsPublic = memb.Accessibility.IsPublic
               FunDef = fdef }]
-        | MemberOrFunctionOrValue (IsCtor memb, Parameters ps,
+        | MemberOrFunctionOrValue (IsCtor memb, FlatParameters ps,
                                    B.Sequential (first,  body)) ->
             // first it calls the base constructor
             let ee = memb.EnclosingEntity.Value
@@ -1223,22 +1328,21 @@ process dictionary call the Ref.release() method.
             let body =
                 this :: doCtor body
                 |> List.rev
-                |> List.fold (fun s e ->
-                                mkLet "_this" e s |> constr)
-                             thisExps
+                |> List.fold (fun s e -> mkLet "_this" e s |> constr) thisExps
 
             let functionName = functionName memb
             let f, ctx = mkFunction ctx functionName (List.length ps)
+
             let args, nm = foldNames ctx (safeVar true) ps
             let lambda = lambda args body
             let fdef = funDef f lambda
-            [{Module = safe ee.FullName //TODO clean
-              Function = functionName
-              Arity = args.Length
-              IsPublic = memb.Accessibility.IsPublic
-              FunDef = fdef }]
+            [{ Module = safe ee.FullName
+               Function = functionName
+               Arity = args.Length
+               IsPublic = memb.Accessibility.IsPublic
+               FunDef = fdef }]
 
-        | MemberOrFunctionOrValue (memb, Parameters ps, expr)
+        | MemberOrFunctionOrValue (memb, FlatParameters ps, expr)
             when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
             let ee = memb.EnclosingEntity.Value
             let ctx = Ctx.init ee.FullName
@@ -1252,6 +1356,9 @@ process dictionary call the Ref.release() method.
                     //remove unit on member call
                     [o]
                 | _ -> ps
+            // how to handle tupled arguments
+            // do we need to create nested case of statements to deconstruct
+            // them?
             let args, nm = foldNames ctx (safeVar true) ps
             // need function context for recursion
             //TODO top level functions are unique so no need to prefix
@@ -1261,7 +1368,7 @@ process dictionary call the Ref.release() method.
             let e, ctx = processExpr ctx expr
             let lambda = lambda args e
             let fdef = funDef f lambda
-            [{Module = safe ee.FullName //TODO clean
+            [{Module = safe ee.FullName
               Function = functionName
               Arity = args.Length
               IsPublic = memb.Accessibility.IsPublic

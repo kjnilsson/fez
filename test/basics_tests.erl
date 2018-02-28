@@ -250,4 +250,6 @@ set_op_test() ->
     [1,3] = basics:set_op_test(),
     ok.
 
-
+ets_test() ->
+    [{"k", "v"}] = basics:ets_tests(),
+    ok.
