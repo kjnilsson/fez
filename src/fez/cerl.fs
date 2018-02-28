@@ -45,7 +45,7 @@ type ExprList<'T> =
     | L of 'T list // no tail expr
     | LL of 'T list * 'T //head elements * tail
 with
-    static member prt printT l =
+    static member prt (printT: 'T -> string) (l: ExprList<'T>) =
         match l with
         | L ls ->
             let heads = String.concat "," (List.map printT ls)
@@ -77,7 +77,7 @@ with
                     litAtom "integer"
                     lst [litAtom "unsigned"; litAtom "big"]])
 
-    static member prt printT (BitString (t, exps)) =
+    static member prt (printT: 'T -> string) (BitString (t: 'T, exps)) =
         let args = String.concat "," (List.map (Exps.prt 0) exps)
         let b = printT t
         sprintf "#<%s>(%s)" b args
@@ -128,10 +128,10 @@ with
 and Ann<'T> =
     | Constr of 'T      // ^ core erlang construct
     | Ann of 'T * List<Const> // ^ core erlang annotated construct
-    static member prt p ann : string =
+    static member prt (printT: 'T -> string) ann : string =
         match ann with
-        | Constr t -> p t
-        | Ann (t, _) -> p t
+        | Constr t -> printT t
+        | Ann (t, _) -> printT t
 
 and Function = Function of Atom * int
 with
@@ -243,7 +243,7 @@ and Exp =
         | Binary bs ->
             let x =
                 bs
-                |> List.map (fun e -> BitString.prt (Exps.prt 0) e)
+                |> List.map (BitString.prt (Exps.prt 0))
                 |> String.concat commaNl
             sprintf "%s#{%s}#" indent x
         | Seq (first, second) ->
@@ -265,7 +265,6 @@ and Exp =
             let cvars = String.concat "," catchvals
             let ce = Exps.prt i4 catche
             sprintf "%stry%s%s%s%sof <%s> ->%s%s%s%scatch <%s> ->%s%s" indent nl e nl indent vars nl suce nl indent cvars nl ce
-        | x -> failwithf "Exp.prt not impl: %A" x
 
 and Exps =
     | Exp of Ann<Exp> // single expression
