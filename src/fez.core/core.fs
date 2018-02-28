@@ -64,3 +64,15 @@ type Ref<'a> with
 type System.Lazy<'a> with
     member l.release () : 'a option =
         Some l.Value
+
+/// binaries are represented as byte arrays and manipulated through the
+/// Binary module
+
+type Binary = byte array
+
+module Binary =
+    let at (pos :int) (subject : Binary) =
+        0uy
+
+    let part (pos :int) (len: int) (subject : Binary) =
+        [||]

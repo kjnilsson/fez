@@ -253,3 +253,8 @@ set_op_test() ->
 ets_test() ->
     [{"k", "v"}] = basics:ets_tests(),
     ok.
+
+
+binary_test() ->
+    {104, <<"i">>} = basics:binaryTest(),
+    ok.

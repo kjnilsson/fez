@@ -497,6 +497,8 @@ module Compiler =
     let toLowerString (o:obj) =
         o.ToString().ToLower()
 
+    type BS<'t> = cerl.BitString<'t>
+
     let mapConst (o : obj) (t: FSharpType) =
         let td = t.TypeDefinition
         match o with
@@ -507,6 +509,12 @@ module Compiler =
         | :? char as c -> litChar c
         | :? string as s -> litString s
         | :? bool as b -> litAtom (toLowerString b)
+        | :? array<byte> as bytes ->
+            let bin = bytes
+                      |> Array.map (BS<_>.fromByte)
+                      |> Array.toList
+                      |> cerl.Binary
+            bin
         | null -> //unit
             litAtom "unit" //Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
@@ -882,7 +890,6 @@ module Compiler =
             let e, ctx = processExpr nm e
             cerl.Case(e, [alt1; alt2]) |> constr, ctx
         | B.Call (callee, f, _, argTypes, expressions) ->
-            printfn "Call %A %A"  f f.CurriedParameterGroups
             translateCall nm callee f argTypes expressions
         | B.TraitCall (types, name, flags, someTypes, argTypes, args) ->
             let args, nm = foldNames nm processExpr args

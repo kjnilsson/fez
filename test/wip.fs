@@ -1,21 +1,27 @@
 module wip
 open Fez.Core
 
+
+let binaryTest() =
+    let b = "hi"B
+    Binary.at 0 b,
+    Binary.part 1 1 b
+
 (* let flip f a b = f b a *)
 
-type S = S
-with
-    static member (-) (s1, s2) =
-        99
+(* type S = S *)
+(* with *)
+(*     static member (-) (s1, s2) = *)
+(*         99 *)
 
-let custom_op_test() =
-    let s1 = S
-    let s2 = S
-    s1 - s2
+(* let custom_op_test() = *)
+(*     let s1 = S *)
+(*     let s2 = S *)
+(*     s1 - s2 *)
 
-type C () =
-    member c.hi(i : int, s: string) =
-        i + 1
+(* type C () = *)
+(*     member c.hi(i : int, s: string) = *)
+(*         i + 1 *)
 
 (* let rec sum n = *)
 (*     match n with *)

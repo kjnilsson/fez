@@ -61,6 +61,26 @@ type Const =
     | CList of ExprList<Const>
 
 type BitString<'T> = BitString of 'T * List<Exps>
+with
+    static member fromByte (b: byte) =
+        let lit l =
+            Exp (Constr (Lit l))
+        let litInt i =
+            lit (LInt i)
+        let litAtom name =
+            lit (LAtom (Atom name))
+        let lst xs =
+            Exp (Constr (List(L xs)))
+        BitString (litInt (int64 b),
+                   [litInt 8L
+                    litInt 1L
+                    litAtom "integer"
+                    lst [litAtom "unsigned"; litAtom "big"]])
+
+    static member prt printT (BitString (t, exps)) =
+        let args = String.concat "," (List.map (Exps.prt 0) exps)
+        let b = printT t
+        sprintf "#<%s>(%s)" b args
 
 and Pat =
     | PVar of Var                 // ^ variable
@@ -134,7 +154,7 @@ and Exp =
     | Case of Exps * List<Ann<Alt>>        // ^ @case@ /exp/ @of@ /alts/ end
     | Tuple of List<Exps>               // ^ tuple expression
     | List of ExprList<Exps>           // ^ list expression
-    | Binary of List<BitString<Exps>>    // ^ binary expression
+    | Binary of BitString<Exps> list    // ^ binary expression
     | Op of Atom * List<Exps>             // ^ operator application
     | Try of Exps * (List<Var> * Exps) * (List<Var> * Exps) // ^ try expression
     | Receive of Ann<Alt> list * TimeOut      // ^ receive expression
@@ -220,6 +240,12 @@ and Exp =
         | List l ->
             let p = Exps.prt 0
             ExprList<Exps>.prt p l
+        | Binary bs ->
+            let x =
+                bs
+                |> List.map (fun e -> BitString.prt (Exps.prt 0) e)
+                |> String.concat commaNl
+            sprintf "%s#{%s}#" indent x
         | Seq (first, second) ->
             let i4 = i+4
             let f = Exps.prt i4 first
@@ -339,9 +365,6 @@ let constr x =
     Exp (Constr x)
 
 let altExpr x = Constr <| Alt x
-
-
-
 
 let litAtom name =
     Lit (LAtom (Atom name))

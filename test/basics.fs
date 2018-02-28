@@ -550,3 +550,7 @@ let ets_tests () =
     etsLookup tid "k"
 
 
+let binaryTest() =
+    let b = "hi"B
+    Binary.at 0 b,
+    Binary.part 1 1 b
