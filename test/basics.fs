@@ -554,3 +554,40 @@ let binaryTest() =
     let b = "hi"B
     Binary.at 0 b,
     Binary.part 1 1 b
+
+[<AutoOpen>]
+module ObjectProcessWrapper =
+
+    type TProto =
+        | Add of int
+        | Sub of int
+        | Get of Pid
+
+    type TReply = Reply of int
+
+    type T (i : int) =
+        let rec loop s =
+            match receive<TProto>() with
+            | Add i ->
+                loop (s + i)
+            | Sub i ->
+                loop (s - i)
+            | Get p ->
+                p <! (Reply s)
+                loop s
+
+        let pid = spawn (fun () -> loop i)
+
+        member __.Add m =
+                pid <! Add m
+        member __.Sub m =
+                pid <! Sub m
+        member __.Get () =
+                pid <! (Get <| self())
+                match receive<TReply>() with
+                | Reply r -> r
+
+let test_object_process_wrapper() =
+    let t = T(5)
+    t.Add 9
+    t.Get()

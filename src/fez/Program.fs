@@ -185,6 +185,7 @@ let main argv =
                 |> List.groupBy (fun fd -> fd.Module)
                 |> List.map (fun (modName, fds) ->
                     let m = toModule modName fds
+                    printfn "fez: writing core module '%s'" modName
                     cerl.prt m
                     |> Erlc.writeErlangCoreFile outDir modName)
 

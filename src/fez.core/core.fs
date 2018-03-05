@@ -39,12 +39,6 @@ let send<'T> (dst: Pid) (msg: 'T) : unit =
 
 let (<!) = send
 
-
-(* let test = *)
-(*     let d = self() |> DstPid *)
-(*     d <! Atom *)
-
-
 type ModCall(modu: string, func: string) =
     inherit System.Attribute()
 

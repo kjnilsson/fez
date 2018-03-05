@@ -1,11 +1,47 @@
 module wip
 open Fez.Core
 
+let add x y = x + y
 
-let binaryTest() =
-    let b = "hi"B
-    Binary.at 0 b,
-    Binary.part 1 1 b
+
+type TProto =
+    | Add of int
+    | Sub of int
+    | Get of Pid
+
+type TReply = Reply of int
+
+type T (i : int) =
+    let rec loop s =
+        match receive<TProto>() with
+        | Add i ->
+            loop (s + i)
+        | Sub i ->
+            loop (s - i)
+        | Get p ->
+            p <! (Reply s)
+            loop s
+
+    let pid = spawn (fun () -> loop i)
+
+    member __.Add m =
+            pid <! Add m
+    member __.Sub m =
+            pid <! Sub m
+    member __.Get () =
+            pid <! (Get <| self())
+            match receive<TReply>() with
+            | Reply r -> r
+
+let test_t() =
+    let t = T(5)
+    t.Add 9
+    let s = self()
+    t.Get ()
+(* let binaryTest() = *)
+(*     let b = "hi"B *)
+(*     Binary.at 0 b, *)
+(*     Binary.part 1 1 b *)
 
 (* let flip f a b = f b a *)
 
@@ -60,12 +96,7 @@ let binaryTest() =
 (*     member x.Memb (s: string, b: bool) = *)
 (*         () *)
 
-[<ModCall("ets", "insert")>]
-let etsInsert (name : string) (key: string, value: int) =
-    ()
 
-let testets() =
-    etsInsert "banana" ("k", 3)
 
 (* let twoArgs x (t: (string * bool)) = *)
 (*     printfn "%A" t *)
@@ -117,7 +148,7 @@ let testets() =
 (* open Fez.Core *)
 
 (* [<ModCall("erlang", "put")>] *)
-(* let put<'a, 'b> (k: 'a) (v: 'b) : 'b option = None *)
+(* let put<'a, 'b> (k: 'a) (v: 'b) : 'bgToption = None *)
 
 (* [<ModCall("erlang", "get")>] *)
 (* let get<'a, 'b> (k: 'a) : 'b option = None *)

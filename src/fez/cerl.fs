@@ -252,7 +252,8 @@ and Exp =
             let s = Exps.prt i4 second
             sprintf "%sdo%s%s%s%s" indent nl f nl s
         | LetRec (funs, e) ->
-            let f = funs |> List.map (fun f -> FunDef.prt (i4, f)) |> String.concat nl
+            let f = funs |> List.map (fun f -> FunDef.prt (i4, f))
+                    |> String.concat nl
             let e = Exps.prt i4 e
             sprintf "%sletrec%s%s%sin%s%s" indent nl f indent nl e
         | Catch e ->
@@ -271,8 +272,6 @@ and Exps =
     | Exps of Ann<Ann<Exp> list> // annotated list of expressions
     with
 
-    (* static member fromVar (v : Var) = *)
-    (*     Exps (Constr (Var v)) *)
     static member empty =
         Exps (Constr [])
     static member prt ((Indent indent) as i) expr =

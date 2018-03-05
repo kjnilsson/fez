@@ -194,11 +194,14 @@ module Compiler =
         { Module: string
           Names : Map<cerl.Var, int>
           Functions : Map<cerl.Var, cerl.Function>
+          // names that evaluate to a literal unit
+          UnitNames : Set<string>
           Members : Set<string> } // module member FullNames
        with static member init m =
                {Module = m
                 Names = Map.empty
                 Functions = Map.empty
+                UnitNames = Set.empty
                 Members = Set.empty}
 
     let mkName (name : string) num =
@@ -236,6 +239,12 @@ module Compiler =
     type ArgType =
         | Tupled of string list
         | Singled of string
+
+    let (|Gumpf|_|) (m: FSharpMemberOrFunctionOrValue) =
+        let gumpf = ["Equals"; "CompareTo"; "GetHashCode"]
+        if List.exists ((=) m.CompiledName) gumpf then
+            Some ()
+        else None
 
     let (|FlatParameters|) (pgs : FSharpMemberOrFunctionOrValue list list) =
             let ps = pgs |> List.fold List.append []
@@ -516,7 +525,7 @@ module Compiler =
                       |> cerl.Binary
             bin
         | null -> //unit
-            litAtom "unit" //Special casing a value here for unit for now
+            litAtom "unit" // Special casing a value here for unit for now
         | x -> failwithf "mapConst: not impl %A" x
 
     let ioLibFormat nm str t args =
@@ -589,7 +598,7 @@ module Compiler =
     let multiDispatch name (args : cerl.Exps list) =
         let multi = litAtom "multi_dispatch" |> constr
         let instance = args.[0]
-        let listArgs = cerl.List(cerl.L args) |> constr
+        let listArgs = cerl.List (cerl.L args) |> constr
         modCall fezCore multi [instance; litAtom name |> constr; listArgs]
 
     let eraseUnit (exprs : FSharpExpr list) =
@@ -751,7 +760,7 @@ module Compiler =
             // as the first argument to the function
             let name = f.LogicalName
             // each args expression needs its own context
-            let args = makeFlatArgs nm f (exprs)
+            let args = makeFlatArgs nm f (eraseUnit exprs)
             let oArg, ctx = processExpr nm o
             // flatten any lambda args
             let stripFezUnit args =
@@ -1138,19 +1147,21 @@ process dictionary call the Ref.release() method.
             // if the target is not a plain value or a function we
             // may not be able to process it inline and thus need to wrap it
             // in a Let
+            //Stash the context
             match processExpr nm target with
             | cerl.Exp (cerl.Constr (cerl.Var _ | cerl.Fun _ )) as t, nm ->
                 // we're cool the target is just a var or fun - we can inline
                 let args, nm = foldNames nm processExpr args
                 let args = (args @ missingArgs) |> stripFezUnit
                 wrap <| (apply t args |> constr), nm
-            | t, nm ->
+            | t, _ ->
                 let t = flattenLambda [] t
                 //the target is something more complex and needs to be
                 //wrapped in a Let
                 let name, nm = uniqueName nm
-                let app, nm =
-                    let args, nm = foldNames nm processExpr args
+                // ignore context update from inner expression
+                let app, _ =
+                    let args, nm = foldNames nm processExpr (eraseUnit args)
                     apply (varExps name) args |> constr, nm
                 mkLet name t app |> constr |> wrap, nm
         | B.Sequential(first, second) ->
@@ -1160,6 +1171,7 @@ process dictionary call the Ref.release() method.
         | B.Lambda (IsUnitArg p, expr) ->
             let unitName, nm = safeVar true nm p.LogicalName
             let body, nm = processExpr nm expr
+            let nm = {nm with UnitNames = nm.UnitNames.Add p.LogicalName}
             // wrap body in let so that unit arg is mapped to unit
             let body = mkLet unitName fezUnit body |> constr
             cerl.Lambda ([], body) |> constr, nm
@@ -1235,6 +1247,9 @@ process dictionary call the Ref.release() method.
             fastIntegerLoop fe te l |> constr, nm
         | B.Quote (e) ->
             processExpr nm e
+        | B.ThisValue e ->
+            let v, nm = safeVar false nm "this"
+            cerl.Var v |> constr, nm
 
 
         (* | B.WhileLoop(trueExpr, expr) -> *)
@@ -1317,7 +1332,7 @@ process dictionary call the Ref.release() method.
                 let o, ctx = processExpr ctx first
                 mkClassInstance o memb |> constr
 
-            let thisExps = cerl.Var "_this" |> constr
+            let thisExps = cerl.Var "_this0" |> constr
 
             let rec doCtor x = [
                 match x with
@@ -1329,13 +1344,16 @@ process dictionary call the Ref.release() method.
                     let field = td.FullName + "." + f.Name |> litAtom |> constr
                     let v, nm = processExpr ctx e
                     yield fieldSet field v thisExps |> constr
+                | B.Let (_, e) ->
+                    // TODO handle the settler there
+                    yield! doCtor e
                 | x -> eprintfn "Constructor: not done %A" x
             ]
 
             let body =
                 this :: doCtor body
                 |> List.rev
-                |> List.fold (fun s e -> mkLet "_this" e s |> constr) thisExps
+                |> List.fold (fun s e -> mkLet "_this0" e s |> constr) thisExps
 
             let functionName = functionName memb
             let f, ctx = mkFunction ctx functionName (List.length ps)
@@ -1349,8 +1367,10 @@ process dictionary call the Ref.release() method.
                IsPublic = memb.Accessibility.IsPublic
                FunDef = fdef }]
 
+        | MemberOrFunctionOrValue (Gumpf, _, _) as m ->
+            []
         | MemberOrFunctionOrValue (memb, FlatParameters ps, expr)
-            when memb.IsModuleValueOrMember && not memb.IsCompilerGenerated ->
+            when memb.IsModuleValueOrMember  ->
             let ee = memb.EnclosingEntity.Value
             let ctx = Ctx.init ee.FullName
             let functionName = functionName memb
@@ -1389,8 +1409,19 @@ process dictionary call the Ref.release() method.
         | Entity (ent, declList)  ->
             []
         | MemberOrFunctionOrValue(x, _, _) ->
+            eprintfn "skipping member or function %+A %A"
+                x.CompiledName
+                (x.LogicalEnclosingEntity,
+                 x.IsConstructorThisValue,
+                 x.IsExtensionMember,
+                 x.IsInstanceMemberInCompiledCode,
+                 x.IsBaseValue,
+                 x.IsValCompiledAsMethod,
+                 x.IsInstanceMember,
+                 x.IsDispatchSlot,
+                 x.IsConstructor)
             []
-        | x -> failwithf "cannot process %A " x
+        | x -> failwithf "cannot process %A" x 
 
     and doDecl decl =
       match decl with

@@ -258,3 +258,7 @@ ets_test() ->
 binary_test() ->
     {104, <<"i">>} = basics:binaryTest(),
     ok.
+
+object_wrapper_test() ->
+    14 = basics:test_object_process_wrapper(),
+    ok.
