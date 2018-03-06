@@ -3,41 +3,36 @@ open Fez.Core
 
 let add x y = x + y
 
-
-type TProto =
+type AdderProto =
     | Add of int
-    | Sub of int
     | Get of Pid
 
-type TReply = Reply of int
+type AdderReply = Reply of int
 
-type T (i : int) =
+type Adder (i : int) =
     let rec loop s =
-        match receive<TProto>() with
+        match receive<AdderProto>() with
         | Add i ->
             loop (s + i)
-        | Sub i ->
-            loop (s - i)
         | Get p ->
-            p <! (Reply s)
+            p <! Reply s
             loop s
 
     let pid = spawn (fun () -> loop i)
 
     member __.Add m =
             pid <! Add m
-    member __.Sub m =
-            pid <! Sub m
     member __.Get () =
             pid <! (Get <| self())
-            match receive<TReply>() with
-            | Reply r -> r
+            let (Reply r) = receive<AdderReply>()
+            r
 
 let test_t() =
-    let t = T(5)
+    let t = Adder (5)
     t.Add 9
-    let s = self()
+    let s = self ()
     t.Get ()
+
 (* let binaryTest() = *)
 (*     let b = "hi"B *)
 (*     Binary.at 0 b, *)

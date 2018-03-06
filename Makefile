@@ -5,7 +5,7 @@ FEZ_CORE := ./src/fez.core/fez.core.fsproj
 TST := ./test/test.fsproj
 
 VERSION := 0.1.0
-SUFFIX := alpha.2
+SUFFIX := alpha.3
 
 .PHONY: restore build all clean test ebin
 

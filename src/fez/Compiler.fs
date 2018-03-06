@@ -542,12 +542,12 @@ module Compiler =
         else None
 
     let (|IsMemberOn|_|) t (f: FSharpMemberOrFunctionOrValue) =
-        if f.IsMember && f.LogicalEnclosingEntity.LogicalName = t then
+        if f.IsMember && f.ApparentEnclosingEntity.LogicalName = t then
             Some f
         else None
 
     let (|IsModuleMemberOn|_|) t (f: FSharpMemberOrFunctionOrValue) =
-        if f.IsModuleValueOrMember && f.LogicalEnclosingEntity.LogicalName = t then
+        if f.IsModuleValueOrMember && f.ApparentEnclosingEntity.LogicalName = t then
             Some f
         else None
 
@@ -572,7 +572,8 @@ module Compiler =
 
     /// used for member
     let qualifiedMember (f : FSharpMemberOrFunctionOrValue) =
-        let fe = f.EnclosingEntity.Value
+        let fe = f.DeclaringEntity.Value
+        (* let fe = f.DeclaringEntity.Value *)
         let name = f.LogicalName
         let eeFullName = fe.FullName
         let eeName = fe.CompiledName
@@ -624,7 +625,7 @@ module Compiler =
         | None -> () ]
 
     let memberFunctionName (f:  FSharpMemberOrFunctionOrValue) =
-        sprintf "%s.%s" f.LogicalEnclosingEntity.LogicalName f.LogicalName
+        sprintf "%s.%s" f.ApparentEnclosingEntity.LogicalName f.LogicalName
         |> safeAtom
 
     //hacky way to check if a type is a library type and thus not implemented
@@ -637,7 +638,7 @@ module Compiler =
                           (f : FSharpMemberOrFunctionOrValue)
                           (argTypes: FSharpType list)
                           (exprs : FSharpExpr list) : (cerl.Exps * Ctx) =
-        let fe = f.EnclosingEntity.Value
+        let fe = f.DeclaringEntity.Value
         let typeHasMfv (e: FSharpExpr) =
             if e.Type.HasTypeDefinition then
                 e.Type.TypeDefinition.MembersFunctionsAndValues
@@ -1279,7 +1280,7 @@ process dictionary call the Ref.release() method.
 
     let rec doFunDecl decl : FDef list =
         let functionName (memb: FSharpMemberOrFunctionOrValue)=
-            let ee = memb.LogicalEnclosingEntity
+            let ee = memb.ApparentEnclosingEntity
             let logicalName = memb.LogicalName
             if memb.IsExtensionMember then
                 sprintf "%s.%s" ee.LogicalName logicalName
@@ -1290,7 +1291,7 @@ process dictionary call the Ref.release() method.
         match decl with
         | MemberOrFunctionOrValue (HasModCallAttribute (args, memb),
                                    Parameters ps, _expr) ->
-            let ee = memb.EnclosingEntity.Value
+            let ee = memb.DeclaringEntity.Value
             let ctx = Ctx.init ee.FullName
             let functionName = functionName memb
             let e1 = litAtom ((snd args.[0]) :?> string) |> constr
@@ -1310,7 +1311,7 @@ process dictionary call the Ref.release() method.
         | MemberOrFunctionOrValue (IsCtor memb, FlatParameters ps,
                                    B.Sequential (first,  body)) ->
             // first it calls the base constructor
-            let ee = memb.EnclosingEntity.Value
+            let ee = memb.DeclaringEntity.Value
             let ctx = Ctx.init ee.FullName
 
             let fieldSet fld v o =
@@ -1371,7 +1372,7 @@ process dictionary call the Ref.release() method.
             []
         | MemberOrFunctionOrValue (memb, FlatParameters ps, expr)
             when memb.IsModuleValueOrMember  ->
-            let ee = memb.EnclosingEntity.Value
+            let ee = memb.DeclaringEntity.Value
             let ctx = Ctx.init ee.FullName
             let functionName = functionName memb
             let ps =
@@ -1411,7 +1412,7 @@ process dictionary call the Ref.release() method.
         | MemberOrFunctionOrValue(x, _, _) ->
             eprintfn "skipping member or function %+A %A"
                 x.CompiledName
-                (x.LogicalEnclosingEntity,
+                (x.ApparentEnclosingEntity,
                  x.IsConstructorThisValue,
                  x.IsExtensionMember,
                  x.IsInstanceMemberInCompiledCode,
@@ -1421,7 +1422,7 @@ process dictionary call the Ref.release() method.
                  x.IsDispatchSlot,
                  x.IsConstructor)
             []
-        | x -> failwithf "cannot process %A" x 
+        | x -> failwithf "cannot process %A" x
 
     and doDecl decl =
       match decl with
