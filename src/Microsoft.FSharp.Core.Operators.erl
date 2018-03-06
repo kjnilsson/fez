@@ -139,6 +139,8 @@ op_RangeStep(Start, Step, Finish)
 op_Modulus(X, Y) ->
     X rem Y.
 
+op_Division(X, Y) when is_integer(X) ->
+    trunc(X/Y);
 op_Division(X, Y) ->
     X / Y.
 
