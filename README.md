@@ -1,4 +1,4 @@
-# FEZ - an fsharp to core erlang experiment
+# FEZ - an F# to core erlang experiment
 
 ### What is it?
 
