@@ -350,8 +350,9 @@ let operator_byte() =
 let mod_div_append_hash() =
     let modu = 10 % 5
     let div = 10 / 5
+    let divf = 10. / 5.
     let app = [] @ []
-    modu, div, app, hash 55
+    modu, div, divf, app, hash 55
 
 let pipes() =
     (2,3) ||> (+),

@@ -23,6 +23,7 @@ restore:
 build: ebin
 	dotnet build $(FEZ_CORE)
 	dotnet build $(FEZ)
+	dotnet build $(TST)
 
 test:
 	./run-tests.sh

@@ -5,8 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Aether.fs" />
-    <Compile Include="aether_test.fs" />
     <Compile Include="wip.fs" />
     <Compile Include="basics.fs" />
     <Compile Include="demo.fs" />

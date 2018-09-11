@@ -30,9 +30,11 @@ module Util =
         let fsharpCoreLib = typeof<Microsoft.FSharp.Core.MeasureAttribute>.GetTypeInfo().Assembly.Location
         let fezCoreLib = typeof<Fez.Core.Pid>.GetTypeInfo().Assembly.Location
         let systemCoreLib = typeof<System.Object>.GetTypeInfo().Assembly.Location
+        let netstandardLib = typeof<System.Collections.IStructuralComparable>.GetTypeInfo().Assembly.Location
         let systemLinqLib = typeof<System.Linq.IQueryable>.GetTypeInfo().Assembly.Location
         let sysPath = Path.GetDirectoryName(systemCoreLib)
         let sysLib name = Path.Combine(sysPath, name + ".dll")
+        (* printfn "System path detect: %s" sysPath *)
         (* let localLib name = Path.Combine(localPath, name + ".dll") *)
         let resolve ref =
             match ref with
@@ -51,7 +53,7 @@ module Util =
             "--target:library"
             "--targetprofile:netcore"
             "-r:" + systemCoreLib
-            "-r:" + resolve "mscorlib"
+            "-r:" + resolve "netstandard"
             "-r:" + resolve "System.Collections"
             "-r:" + resolve "System.Diagnostics.Debug"
             "-r:" + resolve "System.IO"
