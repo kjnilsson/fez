@@ -70,6 +70,7 @@ module Util =
 
     let projectOptions (checker: FSharpChecker) files =
         {FSharpProjectOptions.ProjectFileName = "Test"
+         ProjectId = None
          SourceFiles = List.toArray files
          Stamp = Some 0L
          (* ProjectFileNames = [||] *)

@@ -2,13 +2,14 @@
 -export([
          add/3,
          containsKey/2,
+         count/1,
          empty/0,
          exists/2,
          filter/2,
          find/2,
          findKey/2,
          fold/3,
-         % foldBack/3,
+         foldBack/3,
          forall/2,
          isEmpty/1,
          % iter/2,
@@ -34,6 +35,9 @@ add(K, V, M) ->
 
 containsKey(K, M) ->
     maps:is_key(K, M).
+
+count(M) ->
+    maps:size(M).
 
 empty() -> #{}.
 
@@ -68,6 +72,11 @@ fold(F, S, M) ->
     maps:fold(fun (K, V, Acc) ->
                       F(Acc, K, V)
               end, S, M).
+
+foldBack(F, M, S) ->
+    lists:foldr(fun({K, V}, Acc) ->
+                        F(K, V, Acc)
+                end, S, maps:to_list(M)).
 
 forall(Pred, M) ->
     maps:fold(fun (K, V, true) ->
